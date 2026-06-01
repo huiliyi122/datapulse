@@ -10,7 +10,6 @@ import webbrowser
 
 def main():
     """启动服务并自动打开浏览器"""
-    import sys
     import uvicorn
 
     # PyInstaller 兼容

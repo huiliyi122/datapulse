@@ -11,7 +11,7 @@ import sys
 
 def cmd_crawl(args):
     """执行爬虫任务"""
-    print(f"🕷️ DataPulse - 开始采集")
+    print("🕷️ DataPulse - 开始采集")
     print(f"   目标URL: {len(args.urls)} 个")
     print(f"   并发数:  {args.concurrent}")
     print(f"   延迟:    {args.delay}s")
@@ -31,7 +31,7 @@ def cmd_crawl(args):
     result = asyncio.run(engine.run(args.urls))
 
     print()
-    print(f"✅ 采集完成!")
+    print("✅ 采集完成!")
     print(f"   总计: {result['stats']['total']}")
     print(f"   成功: {result['stats']['success']}")
     print(f"   失败: {result['stats']['failed']}")
@@ -44,8 +44,8 @@ def cmd_crawl(args):
 def cmd_serve(args):
     """启动 Web 服务"""
     import uvicorn
-    print(f"🌐 DataPulse - Web 服务启动")
-    print(f"   📊 前端页面:  http://localhost:3000")
+    print("🌐 DataPulse - Web 服务启动")
+    print("   📊 前端页面:  http://localhost:3000")
     print(f"   📖 API 文档:  http://localhost:{args.port}/docs")
     print(f"   ❤️  健康检查: http://localhost:{args.port}/api/health")
     uvicorn.run("backend.api:app", host=args.host, port=args.port, reload=args.reload)
@@ -73,7 +73,7 @@ def cmd_analyze(args):
 
     analyzer = DataAnalyzer(df)
     result = analyzer.summary()
-    print(f"📋 数据概览:")
+    print("📋 数据概览:")
     for k, v in result.items():
         if k not in ["columns_detail", "insights"]:
             print(f"   {k}: {v}")

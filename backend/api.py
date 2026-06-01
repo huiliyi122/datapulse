@@ -687,7 +687,7 @@ async def readiness_check():
     }
 
 # 静态文件服务 — 必须在所有路由之后，否则会劫持 API 请求
-from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 try:
     app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
 except Exception:
