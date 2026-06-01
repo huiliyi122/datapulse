@@ -603,6 +603,14 @@ def _load_dataframe(filepath: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+# 静态文件服务（前端打包 + 桌面模式）
+from fastapi.staticfiles import StaticFiles
+try:
+    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+except Exception:
+    pass  # 开发模式下前端由 Vite 提供
+
+
 @app.get("/api/health")
 @app.get("/healthz")
 async def health_check():
