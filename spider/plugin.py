@@ -95,7 +95,7 @@ plugin_manager = PluginManager()
 
 
 def register_parser(name: str, url_pattern: str = ".*"):
-    """
+    r"""
     装饰器：注册一个函数作为解析器插件
 
     Usage:
