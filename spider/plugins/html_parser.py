@@ -1,4 +1,4 @@
-/* DataPulse */
+# DataPulse - 内置 HTML 解析器插件
 """
 内置解析器插件
 """
