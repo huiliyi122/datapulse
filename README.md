@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>一站式数据采集、分析与可视化平台</b>
+  <b>All-in-One Data Scraping, Analysis & Visualization Platform</b>
 </p>
 
 <p align="center">
@@ -19,212 +19,212 @@
 
 ---
 
-## 项目简介
+## Overview
 
-DataPulse 是一个开源的 Python 数据采集分析平台，提供从爬虫开发、数据清洗、统计分析到可视化看板的完整工作流。**一条 Docker 命令即可启动全部服务。**
+DataPulse is an open-source Python data scraping and analysis platform, providing a complete workflow from crawler development, data cleaning, statistical analysis to visualization dashboards. **One Docker command to launch all services.**
 
-**适用场景：** 电商价格监控、新闻舆情分析、竞品数据调研、学术数据采集、企业内部数据中台
+**Use cases:** E-commerce price monitoring, news sentiment analysis, competitive research, academic data collection, enterprise data hub
 
 ---
 
-## 核心功能
+## Core Features
 
-### 🕷️ 爬虫引擎
+### 🕷️ Spider Engine
 
-| 功能 | 说明 |
+| Feature | Description |
 |---|---|
-| **异步引擎 (aiohttp)** | 高速爬取静态页面，支持并发控制 |
-| **浏览器引擎 (Playwright)** | JS 渲染页面，支持 Vue/React 等 SPA 应用 |
-| **Stealth 反反爬** | 隐藏 WebDriver 指纹、伪造浏览器特征、随机 UA/分辨率 |
-| **人类行为模拟** | 随机鼠标移动、滚动模式、请求延迟 |
-| **代理池** | 轮询/随机/加权三种策略，自动健康检查，失败剔除 |
-| **分布式爬取** | Master-Worker 架构，Redis 队列通信，水平扩展 |
-| **自动翻页检测** | 链接翻页、数字翻页、Next 按钮自动识别 |
-| **插件系统** | `@register_parser` 装饰器注册自定义解析器 |
-| **中间件链** | 随机延迟、UA 轮换、自动重试、URL 去重 |
+| **Async Engine (aiohttp)** | High-speed static page crawling with concurrency control |
+| **Browser Engine (Playwright)** | JS rendering for SPA apps (Vue/React) |
+| **Stealth Anti-Bot** | Hides WebDriver fingerprint, spoofs browser characteristics, random UA/resolution |
+| **Human Behavior Simulation** | Random mouse movement, scrolling patterns, request delays |
+| **Proxy Pool** | Round-robin/random/weighted strategies, auto health check, failure removal |
+| **Distributed Crawling** | Master-Worker architecture with Redis queues, horizontal scaling |
+| **Auto Pagination** | Link-based, numeric, and Next-button pagination detection |
+| **Plugin System** | `@register_parser` decorator for custom parsers |
+| **Middleware Chain** | Random delay, UA rotation, auto retry, URL dedup |
 
-### 🧠 AI 能力
+### 🧠 AI Capabilities
 
-**智能解析** — 自然语言描述需求，AI 自动生成提取规则
+**Smart Extraction** — Describe what you want in natural language, AI generates extraction rules automatically
 ```python
 from spider import auto_extract
-data = await auto_extract("https://example.com/products", "提取所有商品名和价格")
+data = await auto_extract("https://example.com/products", "Extract all product names and prices")
 ```
 
-**JS 逆向引擎** (实验性) — AI 辅助解析签名算法，自动翻译 JS → Python
+**JS Reverse Engineering** (experimental) — AI-assisted signature algorithm analysis, auto-translate JS → Python
 ```python
 from spider import try_reverse
 result = await try_reverse("https://example.com/api", "_sign")
-# 返回 confidence + 自动生成的 Python 签名函数
+# Returns confidence score + auto-generated Python signing function
 ```
 
-- 支持 **Ollama**（本地免费）和 **OpenAI API**
-- 诚实的置信度评估（high/medium/low）
+- Supports **Ollama** (local & free) and **OpenAI API**
+- Honest confidence assessment (high/medium/low)
 
-### 📊 数据分析
+### 📊 Data Analysis
 
-| 功能 | 说明 |
+| Feature | Description |
 |---|---|
-| **数据清洗** | 缺失值填充、异常值检测（Z-Score）、文本清洗 |
-| **描述统计** | 均值/方差/中位数/分布，字段级别统计 |
-| **相关性分析** | 数值列相关系数矩阵 |
-| **KMeans 聚类** | 自动客户分群、商品档次分类 |
-| **文本分析** | 中文分词、词频统计、TF-IDF 关键词、情感分析 |
-| **报告生成** | 一键生成 Markdown / HTML 数据报告 |
+| **Data Cleaning** | Missing value imputation, outlier detection (Z-Score), text cleaning |
+| **Descriptive Statistics** | Mean/variance/median/distribution, column-level stats |
+| **Correlation Analysis** | Numeric column correlation matrix |
+| **KMeans Clustering** | Auto customer segmentation, product tier classification |
+| **Text Analysis** | Chinese word segmentation, word frequency, TF-IDF keywords, sentiment analysis |
+| **Report Generation** | One-click Markdown / HTML data reports |
 
-### 📈 可视化看板
+### 📈 Dashboard
 
-- **Vue.js 3 + Element Plus** 构建
-- **ECharts 图表**：柱状图（数值对比）、饼图（分类分布）、数据摘要卡片
-- 数据集管理：上传、预览、选择、分析
-- 爬虫任务监控：创建任务、实时进度、历史记录
-- 数据导出：CSV / Excel / JSON
-- **Swagger API 文档**：在线调试
+- Built with **Vue.js 3 + Element Plus**
+- **ECharts charts**: bar charts (numeric comparison), pie charts (category distribution), summary cards, correlation heatmaps, cluster distribution
+- Dataset management: upload, preview, select, analyze
+- Scraper task monitoring: create tasks, real-time progress, history
+- Data export: CSV / Excel / JSON
+- **Swagger API docs**: interactive debugging
 
-### 🔐 用户认证
+### 🔐 Authentication
 
-- JWT Token 认证（零依赖 PBKDF2 + HMAC-SHA256）
-- 注册 / 登录 / 退出 / Token 刷新
-- 所有接口默认公开（纯个人模式）
-- 默认管理员：**admin / admin123**
+- JWT token auth (zero-dependency PBKDF2 + HMAC-SHA256)
+- Register / Login / Logout / Token refresh
+- All endpoints public by default (personal mode)
+- Default admin: **admin / admin123**
 
-### ⚙️ 生产级基础设施
+### ⚙️ Production Infrastructure
 
-| 能力 | 说明 |
+| Feature | Description |
 |---|---|
-| **pip install** | `pip install -e .` 安装，`datapulse` CLI 命令可用 |
-| **YAML 配置** | `datapulse.yaml` 统一配置，环境变量可覆盖 |
-| **多阶段 Docker** | 前端构建 + 后端运行合并一个镜像 |
-| **健康检查** | `/api/health` `/healthz` 存活 + `/api/ready` 就绪探针 |
-| **API 限流** | 60 req/min 全局限流 |
-| **异常处理** | 分层异常体系 + 全局异常处理器 |
-| **日志** | 结构化 JSON logging，滚动文件 |
+| **pip install** | `pip install -e .` with `datapulse` CLI |
+| **YAML Config** | `datapulse.yaml` unified config, env var override |
+| **Multi-stage Docker** | Frontend build + backend runtime in one image |
+| **Health Checks** | `/api/health` `/healthz` liveness + `/api/ready` readiness |
+| **Rate Limiting** | 60 req/min global rate limit |
+| **Error Handling** | Layered exception system + global exception handler |
+| **Logging** | Structured JSON logging with rotating files |
 | **Makefile** | `make test/lint/build/run/clean/dev` |
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 🐳 Docker 部署（推荐）
+### 🐳 Docker (Recommended)
 
 ```bash
-# 克隆项目
-git clone https://gitee.com/绘梨衣/datapulse.git
+# Clone the repo
+git clone https://github.com/huiliyi122/datapulse.git
 cd datapulse
 
-# 一键启动
+# One-command startup
 docker-compose up -d
 
-# 打开浏览器
-# 前端看板: http://localhost:3000
-# API 文档: http://localhost:8000/docs
-# 健康检查: http://localhost:8000/api/health
+# Open in browser
+# Dashboard: http://localhost:3000
+# API Docs: http://localhost:8000/docs
+# Health: http://localhost:8000/api/health
 ```
 
-### 📦 生产部署
+### 📦 Production Deploy
 
 ```bash
-# 多阶段构建
+# Multi-stage build
 docker build -t datapulse .
 docker run -d -p 8000:8000 datapulse
-# → http://localhost:8000 (含前端)
+# → http://localhost:8000 (frontend included)
 ```
 
-### 💻 开发模式
+### 💻 Development
 
 ```bash
-# 方式一：pip install
+# Option 1: pip install
 pip install -e .
-datapulse serve          # 启动 Web 服务
+datapulse serve          # Start web service
 
-# 方式二：源码运行
+# Option 2: from source
 cd backend
 pip install -r requirements.txt
 uvicorn api:app --reload --port 8000
 ```
 
-### 🛠️ CLI 命令行
+### 🛠️ CLI
 
 ```bash
-# 爬取网页
+# Crawl a website
 datapulse crawl https://example.com
 
-# 启动 Web 服务
+# Start web server
 datapulse serve
 
-# 分析本地文件
+# Analyze a local file
 datapulse analyze data.csv
 ```
 
 ---
 
-## API 接口速查
+## API Reference
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |---|---|---|
-| POST | `/api/auth/register` | 用户注册 |
-| POST | `/api/auth/login` | 用户登录 |
-| GET | `/api/auth/me` | 当前用户信息 |
-| GET | `/api/data/datasets` | 数据集列表 |
-| POST | `/api/data/upload` | 上传数据文件 |
-| POST | `/api/analyze` | 执行数据分析 |
-| POST | `/api/analyze/text` | 文本分析 |
-| POST | `/api/scrape/start` | 启动爬虫任务 |
-| GET | `/api/scrape/tasks` | 爬虫任务列表 |
-| GET | `/api/scrape/results/{id}` | 爬取结果 |
-| POST | `/api/ai/extract` | AI 智能解析 |
-| POST | `/api/export` | 导出数据 |
-| POST | `/api/report/generate` | 生成报告 |
-| POST | `/api/auth/logout` | 退出登录 |
-| POST | `/api/ai/jsreverse` | AI JS逆向分析 |
-| GET | `/api/health` | 存活检查 |
-| GET | `/healthz` | K8s 健康探针 |
-| GET | `/api/ready` | 就绪探针 |
+| POST | `/api/auth/register` | Register |
+| POST | `/api/auth/login` | Login |
+| GET | `/api/auth/me` | Current user info |
+| GET | `/api/data/datasets` | List datasets |
+| POST | `/api/data/upload` | Upload data file |
+| POST | `/api/analyze` | Run data analysis |
+| POST | `/api/analyze/text` | Text analysis |
+| POST | `/api/scrape/start` | Start scraper task |
+| GET | `/api/scrape/tasks` | List scraper tasks |
+| GET | `/api/scrape/results/{id}` | Get scrape results |
+| POST | `/api/ai/extract` | AI smart extraction |
+| POST | `/api/export` | Export data |
+| POST | `/api/report/generate` | Generate report |
+| POST | `/api/auth/logout` | Logout |
+| POST | `/api/ai/jsreverse` | AI JS reverse engineering |
+| GET | `/api/health` | Liveness check |
+| GET | `/healthz` | K8s health probe |
+| GET | `/api/ready` | Readiness probe |
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 datapulse/
-├── backend/               # FastAPI 后端
-│   ├── api.py             # RESTful API（限流/校验/异常处理）
-│   ├── analysis.py        # 数据分析引擎
-│   ├── auth.py            # JWT 认证系统
-│   ├── settings.py        # 统一配置（YAML+环境变量）
-│   ├── logging_config.py  # 结构化日志
-│   ├── task_store.py      # 任务持久化
-│   ├── seed.py            # 演示数据初始化
+├── backend/               # FastAPI backend
+│   ├── api.py             # RESTful API (rate limit/validation/error handling)
+│   ├── analysis.py        # Data analysis engine
+│   ├── auth.py            # JWT authentication
+│   ├── settings.py        # Unified config (YAML + env vars)
+│   ├── logging_config.py  # Structured logging
+│   ├── task_store.py      # Task persistence
+│   ├── seed.py            # Demo data initialization
 │   └── requirements.txt
-├── spider/                # 爬虫引擎 (12 模块)
-│   ├── engine.py          # aiohttp 异步引擎
-│   ├── browser_engine.py  # Playwright + Stealth 引擎
-│   ├── ai_parser.py       # AI 智能解析
-│   ├── js_reverse.py      # AI JS 逆向引擎 (实验性)
-│   ├── master.py          # 分布式 Master 节点
-│   ├── worker.py          # 分布式 Worker 节点
-│   ├── pagination.py      # 自动翻页检测
-│   ├── proxy_pool.py      # 代理池
-│   ├── pipelines.py       # 数据管道
-│   ├── plugin.py          # 插件系统
-│   ├── cli.py             # 命令行工具
-│   └── plugins/           # 内置解析器
-├── frontend/              # Vue.js 3 前端
+├── spider/                # Spider engine (15 modules)
+│   ├── engine.py          # aiohttp async engine
+│   ├── browser_engine.py  # Playwright + Stealth engine
+│   ├── ai_parser.py       # AI smart extraction
+│   ├── js_reverse.py      # AI JS reverse engineering (experimental)
+│   ├── master.py          # Distributed Master node
+│   ├── worker.py          # Distributed Worker node
+│   ├── pagination.py      # Auto pagination detection
+│   ├── proxy_pool.py      # Proxy pool
+│   ├── pipelines.py       # Data pipelines
+│   ├── plugin.py          # Plugin system
+│   ├── cli.py             # CLI tool
+│   └── plugins/           # Built-in parsers
+├── frontend/              # Vue.js 3 frontend
 │   └── src/views + components (AnalysisChart / ScraperConfig)
-├── tests/                 # 30+ 测试用例
-├── Dockerfile             # 多阶段生产构建
-├── docker-compose.yml     # 开发环境一键部署
+├── tests/                 # 30+ test cases
+├── Dockerfile             # Multi-stage production build
+├── docker-compose.yml     # Dev environment one-click deploy
 ├── Makefile               # test/lint/build/run
-├── datapulse.yaml         # 配置模板
-├── pyproject.toml         # pip install 支持
+├── datapulse.yaml         # Config template
+├── pyproject.toml         # pip install support
 └── README.md
 ```
 
 ---
 
-## 使用示例
+## Examples
 
-### 示例 1: 快速爬取 + 分析
+### Example 1: Quick Crawl + Export
 
 ```python
 from spider import SpiderEngine, CrawlRequest
@@ -237,10 +237,10 @@ pipeline.add_pipeline(JsonExportPipeline(output_dir="./output"))
 
 result = engine.run(["https://example.com/list"])
 pipeline.close()
-print(f"成功: {result['stats']['success']}, 耗时: {result['elapsed']:.1f}s")
+print(f"Success: {result['stats']['success']}, Elapsed: {result['elapsed']:.1f}s")
 ```
 
-### 示例 2: 反反爬 + Stealth 模式
+### Example 2: Anti-Bot + Stealth Mode
 
 ```python
 from spider import PlaywrightEngine, BrowserConfig, ProxyPool
@@ -248,9 +248,9 @@ from spider import PlaywrightEngine, BrowserConfig, ProxyPool
 pool = ProxyPool(["http://proxy1:8080", "http://proxy2:3128"])
 
 engine = PlaywrightEngine(BrowserConfig(
-    stealth=True,           # 隐藏自动化痕迹
-    simulate_human=True,    # 模拟人类行为
-    proxy_pool=pool,        # 代理自动轮换
+    stealth=True,           # Hide automation traces
+    simulate_human=True,    # Simulate human behavior
+    proxy_pool=pool,        # Auto proxy rotation
 ))
 
 await engine.start()
@@ -258,13 +258,13 @@ result = await engine.fetch("https://example.com")
 await engine.stop()
 ```
 
-### 示例 3: 分布式爬取
+### Example 3: Distributed Crawling
 
 ```python
 from spider import distributed_crawl
 
 async def parse_product(url):
-    # 你的解析逻辑
+    # Your parsing logic
     return {"url": url, "data": "..."}
 
 result = await distributed_crawl(
@@ -273,10 +273,10 @@ result = await distributed_crawl(
     redis_url="redis://localhost:6379/0",
     concurrent=5,
 )
-print(f"总量: {result['total']}, 成功: {result['success']}")
+print(f"Total: {result['total']}, Success: {result['success']}")
 ```
 
-### 示例 4: 自动翻页
+### Example 4: Auto Pagination
 
 ```python
 from spider import PaginationDetector, SpiderEngine
@@ -284,47 +284,47 @@ from spider import PaginationDetector, SpiderEngine
 detector = PaginationDetector()
 engine = SpiderEngine(concurrent=1)
 
-# 自动爬取所有分页
+# Auto-crawl all pages
 all_pages = await detector.crawl_all("https://example.com/list?page=1", engine, max_pages=10)
-print(f"共爬取 {len(all_pages)} 页")
+print(f"Crawled {len(all_pages)} pages")
 ```
 
 ---
 
-## 技术栈
+## Tech Stack
 
-| 层级 | 技术 |
+| Layer | Technology |
 |---|---|
-| **爬虫引擎** | Python, aiohttp, Playwright, BeautifulSoup |
+| **Spider Engine** | Python, aiohttp, Playwright, BeautifulSoup |
 | **AI** | Ollama / OpenAI API |
-| **后端** | FastAPI, Celery, Redis |
-| **数据分析** | Pandas, NumPy, Scikit-learn, jieba |
-| **前端** | Vue.js 3, Element Plus, ECharts |
-| **数据库** | SQLite (开发), PostgreSQL (可选), MongoDB (可选) |
-| **部署** | Docker, Docker Compose, Nginx |
+| **Backend** | FastAPI, Celery, Redis |
+| **Data Analysis** | Pandas, NumPy, Scikit-learn, jieba |
+| **Frontend** | Vue.js 3, Element Plus, ECharts |
+| **Database** | SQLite (dev), PostgreSQL (optional), MongoDB (optional) |
+| **Deployment** | Docker, Docker Compose, Nginx |
 
 ---
 
-## 参与贡献
+## Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Issues and Pull Requests are welcome!
 
-1. Fork 本项目
-2. 创建分支: `git checkout -b feature/amazing`
-3. 提交改动: `git commit -m "feat: your feature"`
-4. 推送分支: `git push origin feature/amazing`
-5. 提交 Pull Request
+1. Fork the repo
+2. Create a branch: `git checkout -b feature/amazing`
+3. Commit changes: `git commit -m "feat: your feature"`
+4. Push: `git push origin feature/amazing`
+5. Open a Pull Request
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
-## 许可证
+## License
 
-基于 MIT 许可证开源，详见 [LICENSE](LICENSE)
+Open sourced under the MIT License. See [LICENSE](LICENSE).
 
 ---
 
 <p align="center">
-  <b>如果 DataPulse 对你有帮助，请给它一个 ⭐️</b>
+  <b>If DataPulse helps you, please give it a ⭐️</b>
 </p>
