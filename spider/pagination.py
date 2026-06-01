@@ -213,9 +213,9 @@ class PaginationDetector:
             visited.add(current_url)
 
             # 爬取当前页
-            from .engine import CrawlRequest
+            from .engine import SpiderEngine, CrawlRequest
 
-            if isinstance(engine, type(self)):
+            if isinstance(engine, SpiderEngine):
                 result = await engine.crawl(CrawlRequest(url=current_url))
             else:
                 result = await engine.fetch(current_url)
@@ -223,7 +223,7 @@ class PaginationDetector:
             if result.status_code != 200:
                 break
 
-            html = result.html if hasattr(result, "html") else result.html
+            html = result.html
             results.append({"url": current_url, "html": html, "page": len(results) + 1})
 
             # 检测下一页

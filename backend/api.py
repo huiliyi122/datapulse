@@ -21,18 +21,19 @@ from analysis import (
     DataCleaner, DataAnalyzer, TextAnalyzer,
     ReportGenerator, generate_insights,
 )
-from auth import user_store, create_jwt, verify_jwt
+from auth import user_store, create_jwt, verify_jwt, ensure_default_admin
 
 app = FastAPI(
     title="DataPulse API",
     description="生产级数据采集与分析平台",
-    version="0.3.1",
+    version="0.3.2",
+    debug=os.environ.get("DATAPULSE_DEBUG", "").lower() in ("true", "1", "yes"),
 )
 
-# CORS
+# CORS（生产环境应限制 origins）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,6 +79,9 @@ UPLOAD_DIR = "./uploads"
 OUTPUT_DIR = "./output"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# 启动时初始化
+ensure_default_admin()
 
 security = HTTPBearer(auto_error=False)
 
@@ -163,6 +167,10 @@ class ExportRequest(BaseModel):
     format: str = "excel"
     filters: dict = {}
 
+class TextAnalysisRequest(BaseModel):
+    texts: list[str] = Field(..., min_length=1, max_length=200)
+    analysis: str = "wordcloud"
+
 # ============================================================
 # 数据采集接口
 # ============================================================
@@ -209,9 +217,12 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
         start = time.time()
 
         # 真实爬取
-        crawl_result = await engine.run(request.urls)
+        try:
+            crawl_result = await engine.run(request.urls)
+        finally:
+            await engine.close()
 
-        # 构建结果
+        # 构建结果（包含成功和失败）
         results = []
         for r in crawl_result["results"]:
             if r.status_code == 200 and r.html:
@@ -219,7 +230,17 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
                     "url": r.url,
                     "status": r.status_code,
                     "content_length": len(r.html),
-                    "title": r.html[:200] if r.html else "",
+                    "title": (r.html[:200] if r.html else ""),
+                    "error": "",
+                    "crawled_at": datetime.now().isoformat(),
+                })
+            elif r.error:
+                results.append({
+                    "url": r.url,
+                    "status": r.status_code or 0,
+                    "content_length": 0,
+                    "title": "",
+                    "error": r.error,
                     "crawled_at": datetime.now().isoformat(),
                 })
 
@@ -239,6 +260,19 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
             "urls": request.urls,
             "results": results,
         }
+
+        # 将结果导出为 CSV 数据集，使前端数据集列表可见
+        if results:
+            try:
+                import re
+                safe_name = re.sub(r'[\\/*?:"<>|]', '_', request.urls[0].split('://')[-1].split('/')[0] or 'scrape')
+                df = pd.DataFrame(results)
+                csv_path = os.path.join(UPLOAD_DIR, f"爬虫_{safe_name}_{task_id[-6:]}.csv")
+                df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+                task_data["dataset_file"] = f"爬虫_{safe_name}_{task_id[-6:]}.csv"
+                task_data["dataset_rows"] = len(df)
+            except Exception as e:
+                logger.warning("导出CSV数据集失败", extra={"error": str(e)})
 
         logger.info("爬虫任务完成", extra={
             "task_id": task_id, "total": crawl_result["stats"]["total"],
@@ -262,8 +296,9 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
             "results": [],
         }
 
-    # 持久化
-    with open(os.path.join(OUTPUT_DIR, f"{task_id}.json"), "w", encoding="utf-8") as f:
+    # 持久化（task_id 由 uuid 生成，安全）
+    fname = _sanitize(task_id) or task_id
+    with open(os.path.join(OUTPUT_DIR, f"{fname}.json"), "w", encoding="utf-8") as f:
         json.dump(task_data, f, ensure_ascii=False, indent=2)
 
     tasks_db[task_id] = {"task_id": task_id, "status": task_data["status"], **task_data}
@@ -272,9 +307,10 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
 @app.get("/api/scrape/task/{task_id}")
 async def get_task_status(task_id: str):
     """查询爬虫任务状态"""
+    safe_id = _sanitize(task_id) or task_id
     task = tasks_db.get(task_id)
     if not task:
-        task_file = os.path.join(OUTPUT_DIR, f"{task_id}.json")
+        task_file = os.path.join(OUTPUT_DIR, f"{safe_id}.json")
         if os.path.exists(task_file):
             with open(task_file, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -329,10 +365,11 @@ async def list_scrape_tasks():
     return {"tasks": task_list, "total": len(task_list)}
 
 
-@app.get("/api/scrape/results/{task_id}")
+@app.get("/api/scrape/results/{task_id:path}")
 async def get_scrape_results(task_id: str):
     """获取爬取结果数据"""
-    task_file = os.path.join(OUTPUT_DIR, f"{task_id}.json")
+    safe_id = _sanitize(task_id) or task_id
+    task_file = os.path.join(OUTPUT_DIR, f"{safe_id}.json")
     if not os.path.exists(task_file):
         raise HTTPException(status_code=404, detail="结果文件不存在")
     with open(task_file, "r", encoding="utf-8") as f:
@@ -442,18 +479,18 @@ async def analyze_data(request: AnalysisRequest):
 
 
 @app.post("/api/analyze/text")
-async def analyze_text(texts: list[str] = Query(...), analysis: str = "wordcloud"):
+async def analyze_text(request: TextAnalysisRequest):
     """文本分析（词频/关键词/情感）"""
     analyzer = TextAnalyzer()
-    if analysis == "wordcloud":
-        result = analyzer.word_frequency(texts)
-    elif analysis == "keyword":
-        result = analyzer.extract_keywords(texts)
-    elif analysis == "sentiment":
-        result = [{"text": t[:50], "score": analyzer.sentiment_score(t)} for t in texts]
+    if request.analysis == "wordcloud":
+        result = analyzer.word_frequency(request.texts)
+    elif request.analysis == "keyword":
+        result = analyzer.extract_keywords(request.texts)
+    elif request.analysis == "sentiment":
+        result = [{"text": t[:50], "score": analyzer.sentiment_score(t)} for t in request.texts]
     else:
-        raise HTTPException(status_code=400, detail=f"未知分析类型: {analysis}")
-    return {"analysis": analysis, "result": result}
+        raise HTTPException(status_code=400, detail=f"未知分析类型: {request.analysis}")
+    return {"analysis": request.analysis, "result": result}
 
 
 # ============================================================
@@ -488,28 +525,31 @@ async def export_data(request: ExportRequest):
     return {"download_url": f"/api/download/{os.path.basename(path)}", "rows": len(df), "format": request.format}
 
 
-@app.get("/api/download/{filename}")
+@app.get("/api/download/{filename:path}")
 async def download_file(filename: str):
     """文件下载"""
-    filepath = os.path.join(OUTPUT_DIR, filename)
-    if not os.path.exists(filepath):
+    safe = os.path.normpath(filename).lstrip("\\/").lstrip(".")
+    if ".." in safe or os.path.isabs(safe):
+        raise HTTPException(status_code=400, detail="非法文件名")
+    filepath = os.path.join(OUTPUT_DIR, safe)
+    if not os.path.exists(filepath) or not filepath.startswith(os.path.abspath(OUTPUT_DIR)):
         raise HTTPException(status_code=404, detail="文件不存在")
-    return FileResponse(filepath, filename=filename)
+    return FileResponse(filepath, filename=os.path.basename(safe))
 
 
 @app.post("/api/report/generate")
 async def generate_report(dataset_id: str, title: str = "数据分析报告"):
-    """生成数据分析报告"""
+    """生成数据分析报告（HTML 格式）"""
     filepath = _resolve_dataset(dataset_id)
     if not filepath:
         raise HTTPException(status_code=404, detail="数据集不存在")
     df = _load_dataframe(filepath)
     analyzer = DataAnalyzer(df)
-    report = ReportGenerator.generate_markdown_report(analyzer, title)
-    report_path = os.path.join(OUTPUT_DIR, f"report_{dataset_id}.md")
+    html = ReportGenerator.generate_html_report(analyzer, title)
+    report_path = os.path.join(OUTPUT_DIR, f"report_{dataset_id}.html")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write(report)
-    return {"report": report, "download_url": f"/api/download/{os.path.basename(report_path)}"}
+        f.write(html)
+    return {"report": html, "download_url": f"/api/download/{os.path.basename(report_path)}"}
 
 
 # ============================================================
@@ -553,6 +593,15 @@ async def ai_extract(request: AIExtractRequest):
         "provider": "ollama"
     }
     """
+    from urllib.parse import urlparse
+    parsed = urlparse(request.url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="仅支持 http/https 协议")
+    blocked = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+    host = parsed.hostname or ""
+    if host in blocked or host.startswith(("10.", "192.168.", "172.16.")):
+        raise HTTPException(status_code=400, detail="不支持内网地址访问")
+
     try:
         from spider.ai_parser import AIParser
 
@@ -583,9 +632,22 @@ async def ai_extract(request: AIExtractRequest):
 # 辅助函数
 # ============================================================
 
+def _sanitize(name: str) -> str:
+    """清理路径遍历字符，白名单只允许字母数字中文下划线连字符点"""
+    import re
+    safe = os.path.normpath(name).lstrip("\\/.")
+    if ".." in safe or os.path.isabs(safe):
+        return ""
+    # 只保留合法字符
+    safe = re.sub(r'[^a-zA-Z0-9\u4e00-\u9fff_.\-]', '_', safe)
+    return safe[:100]
+
 def _resolve_dataset(dataset_id: str) -> Optional[str]:
+    safe = _sanitize(dataset_id)
+    if not safe:
+        return None
     for f in os.listdir(UPLOAD_DIR):
-        if f.startswith(dataset_id):
+        if f.startswith(safe):
             return os.path.join(UPLOAD_DIR, f)
     return None
 
@@ -593,7 +655,7 @@ def _resolve_dataset(dataset_id: str) -> Optional[str]:
 def _load_dataframe(filepath: str) -> pd.DataFrame:
     ext = os.path.splitext(filepath)[1].lower()
     if ext == ".csv":
-        return pd.read_csv(filepath, encoding="utf-8")
+        return pd.read_csv(filepath, encoding="utf-8-sig")
     elif ext in [".xlsx", ".xls"]:
         return pd.read_excel(filepath)
     elif ext == ".json":
@@ -601,14 +663,6 @@ def _load_dataframe(filepath: str) -> pd.DataFrame:
             data = json.load(f)
         return pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame()
     return pd.DataFrame()
-
-
-# 静态文件服务（前端打包 + 桌面模式）
-from fastapi.staticfiles import StaticFiles
-try:
-    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
-except Exception:
-    pass  # 开发模式下前端由 Vite 提供
 
 
 @app.get("/api/health")
@@ -631,3 +685,10 @@ async def readiness_check():
         "checks": checks,
         "timestamp": datetime.now().isoformat(),
     }
+
+# 静态文件服务 — 必须在所有路由之后，否则会劫持 API 请求
+from fastapi.staticfiles import StaticFiles
+try:
+    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+except Exception:
+    pass

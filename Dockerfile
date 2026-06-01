@@ -42,9 +42,6 @@ COPY spider/ ./spider/
 # 前端产物
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# 静态文件服务（FastAPI 直接 serve）
-COPY frontend/dist ./static
-
 # 初始化
 RUN mkdir -p /app/uploads /app/output \
     && python -c "from backend.seed import seed_all; seed_all()" || true

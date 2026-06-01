@@ -56,7 +56,8 @@ def run_spider_task(self, task_id: str, urls: list, **kwargs):
     pipeline.add_pipeline(JsonExportPipeline(output_dir=OUTPUT_DIR))
 
     # 执行爬取
-    result = engine.run(urls)
+    import asyncio
+    result = asyncio.run(engine.run(urls))
     results = result["results"]
 
     # 数据处理

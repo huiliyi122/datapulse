@@ -22,9 +22,12 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record):
         import json
+        from datetime import datetime, timezone
+
+        ts = datetime.fromtimestamp(record.created, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         log_entry = {
-            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "timestamp": ts,
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

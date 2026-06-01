@@ -169,7 +169,9 @@ class PlaywrightEngine:
 
         # 注入 stealth 脚本到所有新页面
         if self.config.stealth:
-            ctx.on("page", lambda page: page.evaluate(STEALTH_JS))
+            async def _inject_stealth(page):
+                await page.evaluate(STEALTH_JS)
+            ctx.on("page", _inject_stealth)
 
             # 给当前已有页面也注入
             for page in ctx.pages:
@@ -313,7 +315,7 @@ class PlaywrightEngine:
 
         # 随机小幅滚动
         scroll_distance = random.randint(50, 400)
-        await page.evaluate(f"window.scrollBy(0, {scroll_distance})")
+        await page.evaluate("window.scrollBy(0, arguments[0])", scroll_distance)
         await asyncio.sleep(random.uniform(0.5, 1.5))
 
     @staticmethod
@@ -321,7 +323,7 @@ class PlaywrightEngine:
         """模拟人类滚动到底部"""
         for i in range(times):
             amount = random.randint(300, 800)
-            await page.evaluate(f"window.scrollBy(0, {amount})")
+            await page.evaluate("window.scrollBy(0, arguments[0])", amount)
             await asyncio.sleep(random.uniform(1.0, 2.5))
 
     @staticmethod

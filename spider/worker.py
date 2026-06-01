@@ -15,12 +15,12 @@ import asyncio
 import signal
 import sys
 
+import logging
+
 from spider.engine import SpiderEngine, CrawlRequest
 from spider.browser_engine import PlaywrightEngine, BrowserConfig
 
-from logging_config import get_logger
-
-logger = get_logger("datapulse.worker")
+logger = logging.getLogger("datapulse.worker")
 
 
 class SpiderWorker:

@@ -202,7 +202,7 @@ class SpiderMaster:
 
 async def distributed_crawl(
     urls: list[str],
-    worker_func: callable,
+    worker_func: "Callable",
     redis_url: str = "redis://localhost:6379/0",
     concurrent: int = 5,
 ) -> dict:

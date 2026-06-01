@@ -14,6 +14,7 @@ Usage:
     proxy = pool.get_proxy()   # 获取一个可用代理
     pool.report_result(proxy, success=True)  # 上报使用结果
 """
+import asyncio
 import json
 import os
 import random
@@ -174,26 +175,24 @@ class ProxyPool:
 
     # -------------------- 健康检查 --------------------
 
-    def validate_proxy(self, proxy: Proxy, test_url: str = "http://httpbin.org/ip", timeout: int = 10) -> bool:
-        """
-        验证单个代理是否可用
-        使用 requests 测试连接
-        """
-        import requests
+    async def validate_proxy(self, proxy: Proxy, test_url: str = "http://httpbin.org/ip", timeout: int = 10) -> bool:
+        """验证单个代理是否可用（异步 aiohttp）"""
+        import aiohttp
 
         try:
             start = time.time()
-            resp = requests.get(
-                test_url,
-                proxies={proxy.protocol: proxy.url},
-                timeout=timeout,
-            )
-            if resp.status_code == 200:
-                proxy.alive = True
-                proxy.latency = time.time() - start
-                proxy.last_checked = time.time()
-                proxy.fail_count = 0
-                return True
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    test_url,
+                    proxy=proxy.url,
+                    timeout=aiohttp.ClientTimeout(total=timeout),
+                ) as resp:
+                    if resp.status == 200:
+                        proxy.alive = True
+                        proxy.latency = time.time() - start
+                        proxy.last_checked = time.time()
+                        proxy.fail_count = 0
+                        return True
         except Exception:
             pass
 
@@ -201,13 +200,10 @@ class ProxyPool:
         proxy.last_checked = time.time()
         return False
 
-    def validate_all(self, test_url: str = "http://httpbin.org/ip"):
-        """验证所有代理"""
-        print(f"🔍 代理池健康检查 ({len(self._proxies)} 个)...")
-        alive_before = self.alive_count
-        for proxy in self._proxies:
-            self.validate_proxy(proxy, test_url)
-        print(f"   可用: {self.alive_count} / {len(self._proxies)} (新增 {self.alive_count - alive_before})")
+    async def validate_all(self, test_url: str = "http://httpbin.org/ip"):
+        """验证所有代理（异步并发）"""
+        tasks = [self.validate_proxy(p, test_url) for p in self._proxies]
+        await asyncio.gather(*tasks)
 
     # -------------------- 结果上报 --------------------
 

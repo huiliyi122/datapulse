@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datapulse"
-version = "0.3.1"
+version = "0.3.2"
 description = "生产级数据采集分析平台 - 双引擎爬虫、AI智能解析、分布式调度、可视化看板"
 readme = "README.md"
 license = {text = "MIT"}
@@ -44,7 +44,7 @@ dependencies = [
     "pyyaml>=6.0,<7.0",
     "slowapi>=0.1,<1.0",
 ]
-dynamic = ["requires-python"]
+dynamic = []
 
 [project.optional-dependencies]
 dev = [

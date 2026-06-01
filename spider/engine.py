@@ -5,6 +5,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 import random
 import time
 from abc import ABC, abstractmethod
@@ -19,6 +20,8 @@ from tenacity import (
     retry, stop_after_attempt, wait_exponential,
     retry_if_exception_type
 )
+
+logger = logging.getLogger("datapulse.engine")
 
 
 @dataclass
@@ -133,6 +136,22 @@ class SpiderEngine:
         """注册中间件"""
         self.middlewares.append(middleware)
 
+    async def _ensure_session(self):
+        """延迟创建共享 Session，复用连接池（线程安全）"""
+        if not hasattr(self, '_session_lock'):
+            self._session_lock = asyncio.Lock()
+        async with self._session_lock:
+            if not hasattr(self, '_session') or self._session is None:
+                self._session = aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(total=30)
+                )
+
+    async def close(self):
+        """关闭引擎，释放连接"""
+        if hasattr(self, '_session') and self._session:
+            await self._session.close()
+            self._session = None
+
     def _url_fingerprint(self, url: str) -> str:
         """URL去重指纹"""
         parsed = urlparse(url)
@@ -161,49 +180,47 @@ class SpiderEngine:
             request = await middleware.process_request(request)
 
         start = time.time()
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=request.timeout)
-        ) as session:
-            try:
-                async with session.request(
-                    method=request.method,
-                    url=request.url,
-                    headers=request.headers,
-                    params=request.params,
-                    json=request.data if request.method == "POST" else None,
-                    cookies=request.cookies,
-                    proxy=request.proxy,
-                    ssl=False,
-                ) as resp:
-                    elapsed = time.time() - start
-                    content_type = resp.headers.get("Content-Type", "")
+        await self._ensure_session()
+        try:
+            async with self._session.request(
+                method=request.method,
+                url=request.url,
+                headers=request.headers,
+                params=request.params,
+                json=request.data if request.method == "POST" else None,
+                cookies=request.cookies,
+                proxy=request.proxy,
+                ssl=False,
+            ) as resp:
+                elapsed = time.time() - start
+                content_type = resp.headers.get("Content-Type", "")
 
-                    if "application/json" in content_type:
-                        data = await resp.json()
-                        result = CrawlResult(
-                            url=request.url,
-                            status_code=resp.status,
-                            json_data=data,
-                            headers=dict(resp.headers),
-                            elapsed=elapsed,
-                        )
-                    else:
-                        html = await resp.text(encoding="utf-8", errors="ignore")
-                        result = CrawlResult(
-                            url=request.url,
-                            status_code=resp.status,
-                            html=html,
-                            headers=dict(resp.headers),
-                            elapsed=elapsed,
-                        )
+                if "application/json" in content_type:
+                    data = await resp.json()
+                    result = CrawlResult(
+                        url=request.url,
+                        status_code=resp.status,
+                        json_data=data,
+                        headers=dict(resp.headers),
+                        elapsed=elapsed,
+                    )
+                else:
+                    html = await resp.text(encoding="utf-8", errors="ignore")
+                    result = CrawlResult(
+                        url=request.url,
+                        status_code=resp.status,
+                        html=html,
+                        headers=dict(resp.headers),
+                        elapsed=elapsed,
+                    )
 
-            except aiohttp.ClientError as e:
-                result = CrawlResult(
-                    url=request.url,
-                    status_code=0,
-                    error=str(e),
-                    elapsed=time.time() - start,
-                )
+        except aiohttp.ClientError as e:
+            result = CrawlResult(
+                url=request.url,
+                status_code=0,
+                error=str(e),
+                elapsed=time.time() - start,
+            )
 
         # 执行响应后中间件链
         for middleware in self.middlewares:
@@ -242,16 +259,16 @@ class SpiderEngine:
     async def run(self, start_urls: list[str], **kwargs):
         """启动爬虫"""
         self._stats["start_time"] = time.time()
-        print(f"[引擎] 启动爬虫，目标: {len(start_urls)} 个URL")
+        logger.info("启动爬虫，目标: %d 个URL", len(start_urls))
 
         await self.crawl_many(start_urls, **kwargs)
 
         elapsed = time.time() - self._stats["start_time"]
-        print(f"[引擎] 爬取完成！"
-              f"总计: {self._stats['total']}, "
-              f"成功: {self._stats['success']}, "
-              f"失败: {self._stats['failed']}, "
-              f"耗时: {elapsed:.2f}s")
+        logger.info(
+            "爬取完成! 总计: %d, 成功: %d, 失败: %d, 耗时: %.2fs",
+            self._stats["total"], self._stats["success"],
+            self._stats["failed"], elapsed,
+        )
 
         return {
             "stats": self._stats,
@@ -284,7 +301,7 @@ class HtmlParser:
         """提取页面元信息"""
         soup = BeautifulSoup(html, "html.parser")
         meta = {
-            "title": soup.title.string.strip() if soup.title else "",
+            "title": soup.title.get_text(strip=True) if soup.title else "",
             "description": "",
             "keywords": "",
         }

@@ -7,7 +7,7 @@ import re
 
 from bs4 import BeautifulSoup
 
-from spider.plugin import BaseParser
+from ..plugin import BaseParser
 
 
 class HtmlTableParser(BaseParser):
@@ -20,7 +20,7 @@ class HtmlTableParser(BaseParser):
         soup = BeautifulSoup(html, "html.parser")
 
         # 提取标题
-        title = soup.title.string.strip() if soup.title else ""
+        title = soup.title.get_text(strip=True) if soup.title else ""
 
         # 提取所有表格
         tables = []

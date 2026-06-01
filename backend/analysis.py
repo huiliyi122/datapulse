@@ -2,6 +2,7 @@
 """
 数据分析模块 - 数据清洗、统计分析和可视化
 """
+import math
 import re
 from collections import Counter
 from datetime import datetime, timedelta
@@ -14,6 +15,37 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
+
+
+def _safe_num(val):
+    """将 NaN/Inf 转为 None，避免 JSON 序列化报错"""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    except (ValueError, TypeError):
+        return val
+
+def _py_val(v):
+    """将 numpy 类型转为 Python 原生类型，确保 JSON 可序列化"""
+    if v is None:
+        return None
+    try:
+        if hasattr(v, 'item'):
+            raw = v.item()
+            if isinstance(raw, float) and (math.isnan(raw) or math.isinf(raw)):
+                return None
+            return raw
+    except Exception:
+        pass
+    if isinstance(v, (np.integer, np.floating)):
+        if isinstance(v, np.floating) and (math.isnan(v) or math.isinf(v)):
+            return None
+        return float(v) if isinstance(v, np.floating) else int(v)
+    return v
 
 
 class DataCleaner:
@@ -193,20 +225,20 @@ class DataAnalyzer:
             desc = self.df[column].describe()
             return {
                 "count": int(desc["count"]),
-                "mean": round(desc["mean"], 2),
-                "std": round(desc["std"], 2),
-                "min": round(desc["min"], 2),
-                "25%": round(desc["25%"], 2),
-                "50%": round(desc["50%"], 2),
-                "75%": round(desc["75%"], 2),
-                "max": round(desc["max"], 2),
+                "mean": _safe_num(round(desc["mean"], 2)),
+                "std": _safe_num(round(desc["std"], 2)),
+                "min": _safe_num(round(desc["min"], 2)),
+                "25%": _safe_num(round(desc["25%"], 2)),
+                "50%": _safe_num(round(desc["50%"], 2)),
+                "75%": _safe_num(round(desc["75%"], 2)),
+                "max": _safe_num(round(desc["max"], 2)),
                 "missing": int(self.df[column].isnull().sum()),
             }
         else:
             value_counts = self.df[column].value_counts().head(10)
             return {
                 "unique": int(self.df[column].nunique()),
-                "top": value_counts.index[0] if len(value_counts) > 0 else None,
+                "top": _py_val(value_counts.index[0]) if len(value_counts) > 0 else None,
                 "top_freq": int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
                 "missing": int(self.df[column].isnull().sum()),
                 "top_values": [
@@ -277,40 +309,120 @@ def generate_insights(analyzer: DataAnalyzer) -> list[str]:
 
 
 class ReportGenerator:
-    """报告生成器"""
+    """报告生成器 — 生成精美的 HTML 数据分析报告"""
 
     @staticmethod
-    def generate_markdown_report(
-        analyzer: DataAnalyzer,
-        title: str = "数据分析报告"
-    ) -> str:
-        """生成Markdown格式报告"""
+    def generate_html_report(analyzer: DataAnalyzer, title: str = "数据分析报告") -> str:
+        """生成 HTML 格式报告"""
         summary = analyzer.summary()
         insights = generate_insights(analyzer)
+        cols_detail = {col: analyzer.describe_column(col) for col in analyzer.df.columns[:30]}
+        corr = analyzer.correlation_matrix()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        lines = [
-            f"# {title}",
-            f"**生成时间:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "",
-            "## 数据概览",
-            f"- 记录数: {summary['rows']}",
-            f"- 字段数: {summary['columns']}",
-            f"- 缺失值: {summary['null_count']}",
-            f"- 重复值: {summary['duplicate_count']}",
-            f"- 占用内存: {summary['memory_mb']}MB",
-            "",
-            "## 数据洞察",
+        # --- 概览卡片 ---
+        cards = [
+            ("总记录", f"{summary['rows']:,}", "#409eff", "📊"),
+            ("字段数", f"{summary['columns']}", "#67c23a", "📋"),
+            ("缺失值", f"{summary['null_count']}", "#e6a23c" if summary['null_count'] > 0 else "#67c23a", "🔍"),
+            ("重复值", f"{summary['duplicate_count']}", "#f56c6c" if summary['duplicate_count'] > 0 else "#67c23a", "📎"),
         ]
-        for i, insight in enumerate(insights, 1):
-            lines.append(f"{i}. {insight}")
+        cards_html = "".join(
+            f'<div class="card"><div class="card-icon">{icon}</div>'
+            f'<div class="card-val" style="color:{color}">{val}</div>'
+            f'<div class="card-label">{label}</div></div>'
+            for label, val, color, icon in cards
+        )
 
-        lines.extend(["", "## 字段详情"])
-        for col in analyzer.df.columns:
-            desc = analyzer.describe_column(col)
-            lines.append(f"")
-            lines.append(f"### {col}")
-            for k, v in desc.items():
-                if k != "top_values":
-                    lines.append(f"- {k}: {v}")
+        # --- 字段详情表 ---
+        def _nf(v, fmt=".1f"):
+            n = _safe_num(v)
+            return f"{n:{fmt}}" if n is not None else "N/A"
 
-        return "\n".join(lines)
+        field_rows = ""
+        for col, desc in cols_detail.items():
+            if "mean" in desc:
+                detail = f'均值 {_nf(desc.get("mean"))}  |  范围 {_nf(desc.get("min"),".0f")} ~ {_nf(desc.get("max"),".0f")}  |  标准差 {_nf(desc.get("std"))}'
+                dtype = "数值"
+            else:
+                top = desc.get("top") or "-"
+                freq = desc.get("top_freq", 0)
+                detail = f'Top: {top} ({freq}次)  |  共 {desc.get("unique","?")} 个唯一值'
+                dtype = "文本"
+            missing = desc.get("missing", 0)
+            missing_flag = f'<span style="color:{"#f56c6c" if missing > 0 else "#67c23a"}">{missing}</span>'
+            field_rows += f'<tr><td>{col}</td><td><span class="tag tag-{"num" if dtype=="数值" else "cat"}">{dtype}</span></td><td>{desc.get("unique","-")}</td><td>{missing_flag}</td><td>{detail}</td></tr>'
+
+        # --- 相关性矩阵 ---
+        corr_html = ""
+        if corr and corr.get("columns", []):
+            cols = corr["columns"]
+            data = corr["data"]
+            thead = '<tr><th></th>' + ''.join(f'<th>{c}</th>' for c in cols) + '</tr>'
+            tbody = ""
+            for i, c in enumerate(cols):
+                tbody += f'<tr><th>{c}</th>'
+                for j in range(len(cols)):
+                    v = data[i][j]
+                    color = "#409eff" if v > 0 else "#f56c6c" if v < 0 else "#909399"
+                    opacity = min(abs(v), 1.0)
+                    tbody += f'<td style="background:rgba({64 if v>0 else 245},{126 if v>0 else 108},{255 if v>0 else 108},{opacity*0.3:.1f});color:{color};font-weight:600">{v:.3f}</td>'
+                tbody += '</tr>'
+            corr_html = f'<table class="corr-table"><thead>{thead}</thead><tbody>{tbody}</tbody></table>'
+
+        # --- 洞察 ---
+        insights_html = ""
+        for i, ins in enumerate(insights, 1):
+            insights_html += f'<li>{ins}</li>'
+        if not insights:
+            insights_html = '<li>数据整体质量良好，无异常发现</li>'
+
+        # --- 组装 ---
+        return f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>{title}</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f7fa;color:#303133;line-height:1.6}}
+.header{{background:linear-gradient(135deg,#409eff,#337ecc);color:#fff;padding:32px 40px;text-align:center}}
+.header h1{{font-size:26px;margin-bottom:6px}}
+.header p{{font-size:14px;opacity:.85}}
+.container{{max-width:1100px;margin:0 auto;padding:24px}}
+.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px}}
+.card{{background:#fff;border-radius:12px;padding:20px 24px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.04)}}
+.card-icon{{font-size:24px;margin-bottom:6px}}
+.card-val{{font-size:32px;font-weight:700}}
+.card-label{{font-size:13px;color:#909399;margin-top:4px}}
+.section{{background:#fff;border-radius:12px;padding:24px 28px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.04)}}
+.section h2{{font-size:18px;color:#303133;border-bottom:2px solid #409eff;padding-bottom:10px;margin-bottom:16px}}
+.insights{{padding-left:20px}}
+.insights li{{padding:6px 0;font-size:14px}}
+.insights li::marker{{color:#409eff}}
+table{{width:100%;border-collapse:collapse;font-size:13px}}
+th,td{{padding:10px 12px;text-align:left;border-bottom:1px solid #ebeef5}}
+th{{background:#f5f7fa;font-weight:600;color:#606266;white-space:nowrap}}
+tr:hover td{{background:#f0f7ff}}
+.tag{{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500}}
+.tag-num{{background:#e8f4fd;color:#409eff}}
+.tag-cat{{background:#fef0e6;color:#e6a23c}}
+.corr-table{{font-size:13px}}
+.corr-table th{{text-align:center}}
+.corr-table td{{text-align:center}}
+.footer{{text-align:center;padding:20px;color:#909399;font-size:12px}}
+@media(max-width:768px){{.container{{padding:12px}} .section{{padding:16px}} .card-val{{font-size:24px}}}}
+</style></head>
+<body>
+<div class="header"><h1>{title}</h1><p>生成时间: {now}</p></div>
+<div class="container">
+<div class="cards">{cards_html}</div>
+<div class="section"><h2>数据洞察</h2><ul class="insights">{insights_html}</ul></div>
+<div class="section"><h2>字段统计详情</h2><table><thead><tr><th>字段名</th><th>类型</th><th>唯一值</th><th>缺失</th><th>统计详情</th></tr></thead><tbody>{field_rows}</tbody></table></div>
+<div class="section"><h2>相关性矩阵</h2>{corr_html if corr_html else '<p style="color:#909399">无足够数值列计算相关性</p>'}</div>
+</div>
+<div class="footer">DataPulse v0.3.1 — 数据采集分析平台</div>
+</body></html>'''
+
+    @staticmethod
+    def generate_markdown_report(analyzer, title="数据分析报告"):
+        """兼容旧接口：生成 Markdown 报告"""
+        return ReportGenerator.generate_html_report(analyzer, title)
