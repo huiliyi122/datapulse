@@ -105,10 +105,9 @@
             </el-table>
           </div>
 
-          <!-- 分析结果 -->
+          <!-- 分析结果图表 -->
           <div v-if="analysisResult" class="analysis-result">
-            <h4>分析结果</h4>
-            <pre class="result-json">{{ analysisResult }}</pre>
+            <AnalysisChart :data="analysisResult" :type="activeAnalysis" />
           </div>
 
           <!-- 导出按钮 -->
@@ -177,13 +176,14 @@ import {
   Upload, Monitor, Search, Check,
   ArrowDown, DataAnalysis,
 } from '@element-plus/icons-vue'
+import AnalysisChart from '@/components/AnalysisChart.vue'
 
 const API = 'http://localhost:8000/api'
 
 export default {
   name: 'DataDashboard',
 
-  components: { DataAnalysis },
+  components: { DataAnalysis, AnalysisChart },
 
   data() {
     return {
@@ -272,7 +272,7 @@ export default {
           dataset_id: this.selectedDataset.id,
           analysis_type: type,
         })
-        this.analysisResult = JSON.stringify(data.result, null, 2)
+        this.analysisResult = data.result
         this.$message.success('分析完成')
       } catch (err) {
         this.$message.error('分析失败: ' + (err.response?.data?.detail || err.message))

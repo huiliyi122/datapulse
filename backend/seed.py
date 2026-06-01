@@ -149,6 +149,12 @@ def seed_all(upload_dir: str = "./uploads", output_dir: str = "./output", force:
     return {"datasets": datasets, "tasks": tasks}
 
 
-if __name__ == "__main__":
+def main():
+    from logging_config import get_logger
+    logger = get_logger("datapulse.seed")
     result = seed_all()
-    print(f"种子数据已创建: {result['datasets']} 个数据集, {result['tasks']} 个爬虫任务")
+    logger.info("种子数据已创建", extra={"datasets": result['datasets'], "tasks": result['tasks']})
+
+
+if __name__ == "__main__":
+    main()

@@ -1,3 +1,4 @@
+# DataPulse CI — GitHub Actions
 name: CI
 
 on:
