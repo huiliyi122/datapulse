@@ -10,23 +10,26 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import (
-    FastAPI, UploadFile, File, HTTPException, Query, WebSocket
+    FastAPI, UploadFile, File, HTTPException, Query, WebSocket, Depends, Header
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, Field
 
 from analysis import (
     DataCleaner, DataAnalyzer, TextAnalyzer,
     ReportGenerator, generate_insights,
 )
+from auth import user_store, create_jwt, verify_jwt
 
 app = FastAPI(
-    title="数据采集与分析平台 API",
-    description="提供数据上传、清洗、分析、导出等一站式服务",
-    version="2.0.0",
+    title="DataPulse API",
+    description="生产级数据采集与分析平台",
+    version="0.3.1",
 )
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,10 +38,109 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 限流中间件（60 req/min 全局限流）
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+
+    limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+except ImportError:
+    limiter = None
+
+
+# 全局异常处理
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """统一错误响应格式"""
+    import traceback
+    from logging_config import get_logger
+
+    logger = get_logger("datapulse.api")
+    logger.error("未处理异常", exc_info=True, extra={
+        "url": str(request.url),
+        "method": request.method,
+    })
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "message": str(exc) if app.debug else "服务器内部错误",
+            "request_id": str(uuid.uuid4())[:8],
+        },
+    )
+
+
 UPLOAD_DIR = "./uploads"
 OUTPUT_DIR = "./output"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+security = HTTPBearer(auto_error=False)
+
+
+# ============================================================
+# 认证依赖
+# ============================================================
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict | None:
+    payload = verify_jwt(credentials.credentials) if credentials else None
+    if payload is None and credentials:
+        raise HTTPException(status_code=401, detail="Token 无效或已过期")
+    return payload
+
+
+async def require_auth(user: dict = Depends(get_current_user)):
+    if user is None:
+        raise HTTPException(status_code=401, detail="请先登录")
+    return user
+
+
+# ============================================================
+# 认证接口
+# ============================================================
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=128)
+
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., max_length=200)
+    password: str = Field(..., min_length=6, max_length=128)
+
+@app.post("/api/auth/register")
+async def register(req: RegisterRequest):
+    user = user_store.create_user(req.username, req.email, req.password)
+    if user is None:
+        raise HTTPException(status_code=400, detail="用户名或邮箱已存在")
+    token = create_jwt(user["id"], user["username"])
+    user_store.save_token(user["id"], token)
+    return {"message": "注册成功", "user": {"id": user["id"], "username": user["username"]}, "access_token": token, "token_type": "bearer"}
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    user = user_store.verify_user(req.username, req.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    token = create_jwt(user["id"], user["username"])
+    user_store.save_token(user["id"], token)
+    return {"access_token": token, "token_type": "bearer", "user": {"id": user["id"], "username": user["username"], "email": user["email"]}}
+
+@app.get("/api/auth/me")
+async def me(user: dict = Depends(require_auth)):
+    return {"user_id": user["user_id"], "username": user["username"]}
+
+@app.post("/api/auth/logout")
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if credentials:
+        user_store.revoke_token(credentials.credentials)
+    return {"message": "已退出登录"}
 
 
 # ============================================================
@@ -46,18 +148,18 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # ============================================================
 
 class ScrapeRequest(BaseModel):
-    urls: list[str]
-    max_pages: int = 10
-    delay: float = 1.0
+    urls: list[str] = Field(..., min_length=1, max_length=100)
+    max_pages: int = Field(default=10, ge=1, le=100)
+    delay: float = Field(default=1.0, ge=0.1, le=10.0)
     use_proxy: bool = False
 
 class AnalysisRequest(BaseModel):
-    dataset_id: str
+    dataset_id: str = Field(..., min_length=1)
     analysis_type: str = "summary"
-    columns: list[str] = []
+    columns: list[str] = Field(default=[], max_length=20)
 
 class ExportRequest(BaseModel):
-    dataset_id: str
+    dataset_id: str = Field(..., min_length=1)
     format: str = "excel"
     filters: dict = {}
 
@@ -90,38 +192,81 @@ async def start_scrape(request: ScrapeRequest):
 
 
 async def _run_scrape_task(task_id: str, request: ScrapeRequest):
-    """模拟爬虫任务执行并生成结果文件"""
-    await asyncio.sleep(3)  # 模拟爬取耗时
+    """真实调用爬虫引擎执行任务"""
+    import time
+    from logging_config import get_logger
 
-    results = []
-    for i, url in enumerate(request.urls):
-        results.append({
-            "title": f"商品 {i+1}",
-            "price": f"{round(10 + i * 10.5, 2)}",
-            "url": url,
-            "crawled_at": datetime.now().isoformat(),
+    logger = get_logger("datapulse.scraper")
+
+    try:
+        # 导入爬虫引擎
+        from spider.engine import SpiderEngine, CrawlRequest, RandomDelayMiddleware
+        from spider.pipelines import DataPipelineManager, JsonExportPipeline, DedupPipeline, DataItem
+
+        engine = SpiderEngine(concurrent=min(request.max_pages, 10))
+        engine.add_middleware(RandomDelayMiddleware(min_delay=max(0.5, request.delay), max_delay=request.delay + 1))
+
+        start = time.time()
+
+        # 真实爬取
+        crawl_result = engine.run(request.urls)
+
+        # 构建结果
+        results = []
+        for r in crawl_result["results"]:
+            if r.status_code == 200 and r.html:
+                results.append({
+                    "url": r.url,
+                    "status": r.status_code,
+                    "content_length": len(r.html),
+                    "title": r.html[:200] if r.html else "",
+                    "crawled_at": datetime.now().isoformat(),
+                })
+
+        elapsed = round(time.time() - start, 2)
+        success = crawl_result["stats"]["success"]
+        failed = crawl_result["stats"]["failed"]
+
+        task_data = {
+            "task_id": task_id,
+            "status": "completed",
+            "total": crawl_result["stats"]["total"],
+            "success": success,
+            "failed": failed,
+            "elapsed": elapsed,
+            "created_at": tasks_db[task_id]["created_at"],
+            "completed_at": datetime.now().isoformat(),
+            "urls": request.urls,
+            "results": results,
+        }
+
+        logger.info("爬虫任务完成", extra={
+            "task_id": task_id, "total": crawl_result["stats"]["total"],
+            "success": success, "elapsed": elapsed,
         })
 
-    total = len(results)
-    task_data = {
-        "task_id": task_id,
-        "status": "completed",
-        "total": total,
-        "success": total,
-        "failed": 0,
-        "elapsed": 3.0,
-        "created_at": tasks_db[task_id]["created_at"],
-        "completed_at": datetime.now().isoformat(),
-        "urls": request.urls,
-        "results": results,
-    }
+    except Exception as e:
+        logger.error("爬虫任务失败", exc_info=True, extra={"task_id": task_id})
 
-    # 保存到文件（持久化）
+        task_data = {
+            "task_id": task_id,
+            "status": "failed",
+            "total": 0,
+            "success": 0,
+            "failed": len(request.urls),
+            "elapsed": 0,
+            "created_at": tasks_db[task_id]["created_at"],
+            "completed_at": datetime.now().isoformat(),
+            "urls": request.urls,
+            "error": str(e),
+            "results": [],
+        }
+
+    # 持久化
     with open(os.path.join(OUTPUT_DIR, f"{task_id}.json"), "w", encoding="utf-8") as f:
         json.dump(task_data, f, ensure_ascii=False, indent=2)
 
-    # 更新内存状态
-    tasks_db[task_id] = {"task_id": task_id, "status": "completed", **task_data}
+    tasks_db[task_id] = {"task_id": task_id, "status": task_data["status"], **task_data}
 
 
 @app.get("/api/scrape/task/{task_id}")
@@ -388,6 +533,53 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 # ============================================================
+# AI 智能解析接口
+# ============================================================
+
+class AIExtractRequest(BaseModel):
+    url: str
+    description: str
+    provider: str = "ollama"  # ollama / openai
+
+@app.post("/api/ai/extract")
+async def ai_extract(request: AIExtractRequest):
+    """
+    AI 智能解析: 给 URL + 自然语言描述，自动提取数据
+
+    示例:
+    {
+        "url": "https://books.toscrape.com",
+        "description": "提取所有书名和价格",
+        "provider": "ollama"
+    }
+    """
+    try:
+        from spider.ai_parser import AIParser
+
+        parser = AIParser(provider=request.provider)
+
+        # 先爬取
+        html = await parser._fetch_url(request.url)
+
+        # AI 推断规则
+        schema = await parser.infer(html, request.description)
+
+        # 提取数据
+        data = parser.extract(html, schema)
+
+        return {
+            "url": request.url,
+            "description": request.description,
+            "provider": request.provider,
+            "schema": schema,
+            "data_count": len(data),
+            "data": data[:20],  # 只返回前 20 条预览
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI解析失败: {str(e)}")
+
+
+# ============================================================
 # 辅助函数
 # ============================================================
 
@@ -412,5 +604,22 @@ def _load_dataframe(filepath: str) -> pd.DataFrame:
 
 
 @app.get("/api/health")
+@app.get("/healthz")
 async def health_check():
-    return {"status": "ok", "version": "2.0.0", "timestamp": datetime.now().isoformat(), "uptime": "running"}
+    """健康检查 - 基础存活探针"""
+    return {"status": "ok", "version": "0.3.1", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/ready")
+async def readiness_check():
+    """就绪探针 - 含存储目录检查"""
+    checks = {
+        "api": "ok",
+        "uploads": os.path.isdir(UPLOAD_DIR),
+        "output": os.path.isdir(OUTPUT_DIR),
+    }
+    all_ok = all(checks.values())
+    return {
+        "ready": all_ok,
+        "checks": checks,
+        "timestamp": datetime.now().isoformat(),
+    }

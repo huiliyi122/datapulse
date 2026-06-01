@@ -1,0 +1,56 @@
+# DataPulse 配置文件 v0.3.1
+# 环境变量优先级高于此文件中的值
+# 使用: datapulse --config custom.yaml
+
+# === 服务配置 ===
+server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+
+# === 爬虫引擎 ===
+spider:
+  concurrent: 5          # 并发请求数
+  min_delay: 0.5         # 最小请求间隔（秒）
+  max_delay: 2.0         # 最大请求间隔（秒）
+  timeout: 30            # 请求超时（秒）
+  max_retries: 3         # 最大重试次数
+  user_agent_rotation: true
+
+# === Playwright 浏览器 ===
+browser:
+  headless: true
+  stealth: true          # 隐藏自动化痕迹
+  simulate_human: true   # 模拟人类行为
+  timeout: 30
+
+# === 代理池 ===
+proxy:
+  enabled: false
+  strategy: "weighted"   # round_robin / random / weighted
+  max_fail: 3            # 连续失败多少次后剔除
+  pool_file: ""          # 代理列表文件路径
+
+# === 存储路径 ===
+storage:
+  upload_dir: "./uploads"
+  output_dir: "./output"
+  db_path: "./tasks.db"
+
+# === AI 配置 ===
+ai:
+  provider: "ollama"     # ollama / openai
+  model: "qwen2.5:7b"
+  base_url: ""           # 留空使用默认
+  api_key: ""            # OpenAI API Key
+
+# === 认证 ===
+auth:
+  jwt_secret: "datapulse-secret-change-in-production"
+  jwt_expire_hours: 24
+
+# === 日志 ===
+logging:
+  level: "INFO"          # DEBUG / INFO / WARNING / ERROR
+  format: "text"         # json / text
+  file: ""               # 留空只输出到控制台

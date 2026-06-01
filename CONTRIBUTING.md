@@ -1,12 +1,16 @@
 # 贡献指南
 
+本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
+
+> **环境要求:** Python 3.10+, Node.js 18+, Docker (可选)
+
 感谢你有兴趣为 DataPulse 贡献代码！
 
 ## 开发环境搭建
 
 ```bash
 # 克隆项目
-git clone https://gitee.com/huiliyi122/datapulse.git
+git clone https://gitee.com/绘梨衣/datapulse.git
 cd datapulse
 
 # 使用 Docker

@@ -1,3 +1,4 @@
+# DataPulse 忽略规则
 # Python
 __pycache__/
 *.py[cod]
