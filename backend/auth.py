@@ -213,4 +213,4 @@ user_store = UserStore()
 admin = user_store.get_user("admin")
 if admin is None:
     user_store.create_user("admin", "admin@datapulse.local", "admin123")
-    print("✅ 默认管理员已创建: admin / admin123")
+    print("默认管理员已创建: admin / admin123")

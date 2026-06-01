@@ -12,7 +12,10 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import pandas as pd
-from pymongo import MongoClient
+try:
+    from pymongo import MongoClient
+except ImportError:
+    MongoClient = None  # MongoDB 可选依赖
 
 
 class DataItem:

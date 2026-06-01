@@ -51,3 +51,14 @@ build/
 # Temp
 tmp/
 temp/
+
+# Build
+build/
+dist/
+DataPulse.spec
+env-pulse/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
