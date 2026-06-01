@@ -228,12 +228,12 @@ class PaginationDetector:
 
             # 检测下一页
             links = self.detect(html, base_url=current_url)
-            next_links = [l for l in links if l.is_next]
+            next_links = [ln for ln in links if ln.is_next]
             if next_links:
                 current_url = next_links[0].url
             else:
                 # 尝试数字翻页
-                next_page_links = [l for l in links if l.page_num == len(results) + 1]
+                next_page_links = [ln for ln in links if ln.page_num == len(results) + 1]
                 if next_page_links:
                     current_url = next_page_links[0].url
                 else:
