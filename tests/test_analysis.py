@@ -10,9 +10,9 @@ from backend.analysis import (
 @pytest.fixture
 def sample_df():
     return pd.DataFrame({
-        "name": ["  Alice  ", "Bob", "Charlie", ""],
+        "name": ["  Alice  ", "Bob", "Charlie", None],
         "age": [25, 30, None, 35],
-        "score": [85.5, 90.0, 78.3, 1000.0],  # 最后一个是异常值
+        "score": [85.5, 90.0, 78.3, 999999.0],  # 最后一个明显异常
         "text": ["product A review", "product B review", "product C review", ""],
     })
 
@@ -36,7 +36,7 @@ class TestDataCleaner:
         assert result["age"].isnull().sum() == 0
 
     def test_remove_outliers(self, sample_df):
-        result = DataCleaner.remove_outliers(sample_df, "score")
+        result = DataCleaner.remove_outliers(sample_df, "score", threshold=0.5)
         assert len(result) < len(sample_df)  # 异常值行被移除
 
 

@@ -104,17 +104,16 @@ class DataCleaner:
 
             if df[col].dtype in ["float64", "int64"]:
                 if strategy == "mean":
-                    df[col].fillna(df[col].mean(), inplace=True)
+                    df[col] = df[col].fillna(df[col].mean())
                 elif strategy == "median":
-                    df[col].fillna(df[col].median(), inplace=True)
+                    df[col] = df[col].fillna(df[col].median())
                 elif strategy == "zero":
-                    df[col].fillna(0, inplace=True)
+                    df[col] = df[col].fillna(0)
                 elif strategy == "ffill":
-                    df[col].ffill(inplace=True)
+                    df[col] = df[col].ffill()
             else:
-                df[col].fillna(df[col].mode().iloc[0]
-                               if not df[col].mode().empty else "",
-                               inplace=True)
+                df[col] = df[col].fillna(df[col].mode().iloc[0]
+                                         if not df[col].mode().empty else "")
         return df
 
     @staticmethod
