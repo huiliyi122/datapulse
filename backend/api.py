@@ -209,7 +209,7 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
         start = time.time()
 
         # 真实爬取
-        crawl_result = engine.run(request.urls)
+        crawl_result = await engine.run(request.urls)
 
         # 构建结果
         results = []
