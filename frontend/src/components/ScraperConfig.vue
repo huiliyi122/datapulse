@@ -196,7 +196,7 @@
 </template>
 
 <script>
-import { reactive, ref } from 'vue'
+import { onUnmounted, reactive, ref } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
@@ -233,12 +233,17 @@ export default {
       concurrency: [{ required: true, message: '请设置并发数' }],
     }
 
+    let _activeTimer = null
     const isRunning = ref(false)
     const progress = reactive({
       crawled: 0, success: 0, failed: 0, elapsed: 0, percent: 0,
     })
     const results = ref([])
     const resultColumns = ref([])
+
+    onUnmounted(() => {
+      if (_activeTimer) { clearInterval(_activeTimer); _activeTimer = null }
+    })
 
     const handleStart = async () => {
       const valid = await formRef.value.validate().catch(() => false)
@@ -257,7 +262,7 @@ export default {
       resultColumns.value = []
 
       const startTime = Date.now()
-      const timer = setInterval(() => {
+      _activeTimer = setInterval(() => {
         progress.elapsed = Math.floor((Date.now() - startTime) / 1000)
       }, 1000)
 
@@ -297,14 +302,20 @@ export default {
       } catch (err) {
         ElMessage.error('采集启动失败: ' + (err.response?.data?.detail || err.message))
       } finally {
-        clearInterval(timer)
+        clearInterval(_activeTimer)
+        _activeTimer = null
         isRunning.value = false
       }
     }
 
-    const handleTest = () => {
+    const handleTest = async () => {
       ElMessage.info('测试连接中...')
-      setTimeout(() => ElMessage.success('连接正常'), 1500)
+      try {
+        await axios.get('/api/health')
+        ElMessage.success('连接正常')
+      } catch {
+        ElMessage.error('连接失败，请检查服务是否启动')
+      }
     }
 
     const handleSave = () => {

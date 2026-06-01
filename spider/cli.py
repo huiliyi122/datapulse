@@ -3,6 +3,7 @@
 DataPulse CLI - 命令行工具
 """
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -27,7 +28,7 @@ def cmd_crawl(args):
     pipeline.add_pipeline(DedupPipeline())
     pipeline.add_pipeline(JsonExportPipeline(output_dir=args.output))
 
-    result = engine.run(args.urls)
+    result = asyncio.run(engine.run(args.urls))
 
     print()
     print(f"✅ 采集完成!")

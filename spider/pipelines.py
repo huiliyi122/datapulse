@@ -144,34 +144,21 @@ class JsonExportPipeline(BasePipeline):
 
     def __init__(self, output_dir: str = "./output"):
         self.output_dir = output_dir
-        self._buffer = {}
+        self._all = {}  # 累积全部数据，close 时一次性写入
 
     def process_item(self, item: DataItem) -> Optional[DataItem]:
         os.makedirs(self.output_dir, exist_ok=True)
-
-        if item.name not in self._buffer:
-            self._buffer[item.name] = []
-
-        self._buffer[item.name].append(item.to_dict())
-
-        # 每100条写一次文件
-        if len(self._buffer[item.name]) >= 100:
-            self._flush(item.name)
-
+        if item.name not in self._all:
+            self._all[item.name] = []
+        self._all[item.name].append(item.to_dict())
         return item
 
-    def _flush(self, name: str):
-        """刷入磁盘"""
-        filepath = os.path.join(self.output_dir, f"{name}.json")
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(self._buffer[name], f, ensure_ascii=False, indent=2)
-        self._buffer[name] = []
-
     def close(self):
-        """关闭管道，刷出剩余数据"""
-        for name in list(self._buffer.keys()):
-            if self._buffer[name]:
-                self._flush(name)
+        """关闭管道，写入全部数据"""
+        for name, items in self._all.items():
+            filepath = os.path.join(self.output_dir, f"{name}.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(items, f, ensure_ascii=False, indent=2)
 
 
 class MongoPipeline(BasePipeline):
@@ -322,7 +309,7 @@ class AnalysisExporter:
                 html += f"<td>{val}</td>"
             html += "</tr>"
 
-        html += """
+        html += f"""
         </tbody></table>
         <p style="color:#909399;margin-top:12px;">
             共 {len(df)} 条记录，仅展示前100条

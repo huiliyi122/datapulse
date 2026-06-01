@@ -1,12 +1,13 @@
 """
 用户认证系统
 
-- JWT Token 认证
+- JWT Token 认证 (HMAC-SHA256)
 - SQLite 存储用户（零依赖）
-- bcrypt 密码哈希
+- PBKDF2 密码哈希
 - 登录/注册/Token 刷新
 """
 import hashlib
+import hmac
 import os
 import sqlite3
 import time
@@ -130,10 +131,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    """验证密码"""
+    """验证密码（常数时间比较）"""
     try:
         salt, stored = hashed.split("$", 1)
-        return _pbkdf2(password, salt) == stored
+        return hmac.compare_digest(_pbkdf2(password, salt), stored)
     except (ValueError, AttributeError):
         return False
 
@@ -162,8 +163,9 @@ def create_jwt(user_id: int, username: str, expires_hours: int = 24) -> str:
         "exp": int(time.time()) + expires_hours * 3600,
         "iat": int(time.time()),
     }).encode()).rstrip(b"=").decode()
+    signing_input = f"{header}.{payload}".encode()
     signature = base64.urlsafe_b64encode(
-        hashlib.sha256(f"{header}.{payload}.{JWT_SECRET}".encode()).digest()
+        hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
     ).rstrip(b"=").decode()
 
     return f"{header}.{payload}.{signature}"
@@ -181,16 +183,18 @@ def verify_jwt(token: str) -> Optional[dict]:
 
         header, payload, signature = parts
 
-        # 验证签名
+        # 验证签名 (HMAC-SHA256，常数时间比较)
+        signing_input = f"{header}.{payload}".encode()
         expected_sig = base64.urlsafe_b64encode(
-            hashlib.sha256(f"{header}.{payload}.{JWT_SECRET}".encode()).digest()
+            hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
         ).rstrip(b"=").decode()
 
-        if signature != expected_sig:
+        if not hmac.compare_digest(signature, expected_sig):
             return None
 
-        # 解码 payload
-        payload_bytes = payload.encode() + b"=" * (4 - len(payload) % 4)
+        # 解码 payload（修复 padding）
+        pad = (4 - len(payload) % 4) % 4
+        payload_bytes = payload.encode() + b"=" * pad
         data = json.loads(base64.urlsafe_b64decode(payload_bytes))
 
         # 检查过期
@@ -209,8 +213,9 @@ def verify_jwt(token: str) -> Optional[dict]:
 
 user_store = UserStore()
 
-# 首次启动自动创建默认管理员账号
-admin = user_store.get_user("admin")
-if admin is None:
-    user_store.create_user("admin", "admin@datapulse.local", "admin123")
-    print("默认管理员已创建: admin / admin123")
+
+def ensure_default_admin():
+    """首次启动自动创建默认管理员（仅在调用时执行）"""
+    admin = user_store.get_user("admin")
+    if admin is None:
+        user_store.create_user("admin", "admin@datapulse.local", "admin123")

@@ -7,6 +7,7 @@
         <el-upload
           :action="uploadUrl"
           :on-success="handleUploadSuccess"
+          :on-error="handleUploadError"
           :show-file-list="false"
           accept=".csv,.xlsx,.xls,.json"
         >
@@ -137,8 +138,15 @@
     </div>
 
     <!-- 爬虫任务对话框 -->
-    <el-dialog v-model="showScraperDialog" title="新建爬虫任务" width="600px">
-      <el-form :model="scraperForm" label-width="100px">
+    <el-dialog
+      v-model="showScraperDialog"
+      :title="scraping ? '爬取进度' : '新建爬虫任务'"
+      width="650px"
+      :close-on-click-modal="!scraping"
+      :show-close="!scraping"
+    >
+      <!-- 配置表单 (未开始爬取时显示) -->
+      <el-form v-if="!scraping" :model="scraperForm" label-width="100px">
         <el-form-item label="目标URL">
           <el-input
             v-model="scraperForm.urls"
@@ -160,11 +168,85 @@
           />
         </el-form-item>
       </el-form>
+
+      <!-- 爬取进度 (爬取中显示) -->
+      <div v-if="scraping" class="scrape-progress">
+        <div class="progress-stats">
+          <div class="progress-item">
+            <span>已爬取</span>
+            <strong>{{ progress.crawled }}</strong>
+          </div>
+          <div class="progress-item">
+            <span>成功</span>
+            <strong style="color:#67c23a">{{ progress.success }}</strong>
+          </div>
+          <div class="progress-item">
+            <span>失败</span>
+            <strong style="color:#f56c6c">{{ progress.failed }}</strong>
+          </div>
+          <div class="progress-item">
+            <span>耗时</span>
+            <strong>{{ progress.elapsed }}s</strong>
+          </div>
+        </div>
+        <el-progress
+          :percentage="progress.percent"
+          :status="progress.percent === 100 ? 'success' : undefined"
+          :stroke-width="14"
+          striped
+          striped-flow
+        />
+        <p class="progress-tip" v-if="progress.percent < 100">
+          正在爬取中，请耐心等待...
+        </p>
+      </div>
+
+      <!-- 采集结果 (完成后显示) -->
+      <div v-if="scrapeResults.length > 0" class="scrape-results">
+        <h4>采集结果 (共 {{ scrapeResults.length }} 条)</h4>
+        <el-table :data="scrapeResults.slice(0, 20)" border stripe size="small" max-height="350">
+          <el-table-column type="index" label="#" width="40" />
+          <el-table-column
+            v-for="col in scrapeResultCols"
+            :key="col"
+            :prop="col"
+            :label="col"
+            min-width="120"
+            show-overflow-tooltip
+          />
+        </el-table>
+        <p v-if="scrapeResults.length > 20" class="table-tip">
+          仅展示前20条，共 {{ scrapeResults.length }} 条
+        </p>
+      </div>
+
       <template #footer>
-        <el-button @click="showScraperDialog = false">取消</el-button>
-        <el-button type="primary" @click="startScraper" :loading="scraping">
-          {{ scraping ? '爬取中...' : '开始爬取' }}
-        </el-button>
+        <el-button
+          v-if="!scraping"
+          @click="showScraperDialog = false"
+        >取消</el-button>
+        <el-button
+          v-if="!scraping"
+          type="primary"
+          @click="startScraper"
+        >开始爬取</el-button>
+        <el-button
+          v-if="progress.percent === 100"
+          type="primary"
+          @click="closeScraperDialog"
+        >完成</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 分析报告弹窗 -->
+    <el-dialog v-model="showReportDialog" :title="reportTitle" width="800px" top="2vh" destroy-on-close>
+      <div v-loading="reportLoading" style="max-height:70vh;overflow-y:auto;padding:8px">
+        <div v-if="reportHtml" class="report-body" v-html="reportHtml"></div>
+        <el-empty v-else :description="reportLoading ? '正在生成...' : '暂无内容'" />
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="downloadReport" :disabled="!reportDownloadUrl">下载报告</el-button>
+        <el-button @click="showReportDialog = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -173,28 +255,28 @@
 <script>
 import axios from 'axios'
 import {
-  Upload, Monitor, Search, Check,
+  Upload, Monitor, Check,
   ArrowDown, DataAnalysis,
 } from '@element-plus/icons-vue'
 import AnalysisChart from '@/components/AnalysisChart.vue'
 
-const API = 'http://localhost:8000/api'
+const API = '/api'
 
 export default {
   name: 'DataDashboard',
 
-  components: { DataAnalysis, AnalysisChart },
+  components: { DataAnalysis, AnalysisChart, Check, ArrowDown },
 
   data() {
     return {
-      Upload, Monitor, Search, Check, ArrowDown,
+      Upload, Monitor, Check, ArrowDown,
 
       // 状态
       statistics: [
-        { label: '数据集总量', value: 0, icon: 'Folder', color: '#409eff', trend: 12 },
-        { label: '数据总条数', value: 0, icon: 'Document', color: '#67c23a', trend: 8 },
-        { label: '爬虫任务', value: 0, icon: 'Monitor', color: '#e6a23c', trend: -3 },
-        { label: '存储用量', value: '0 MB', icon: 'Coin', color: '#f56c6c', trend: 15 },
+        { label: '数据集总量', value: 0, icon: 'Folder', color: '#409eff' },
+        { label: '数据总条数', value: 0, icon: 'Document', color: '#67c23a' },
+        { label: '爬虫任务', value: 0, icon: 'Monitor', color: '#e6a23c' },
+        { label: '存储用量', value: '0 MB', icon: 'Coin', color: '#f56c6c' },
       ],
 
       datasets: [],
@@ -208,6 +290,17 @@ export default {
       showScraperDialog: false,
       scraperForm: { urls: '', maxPages: 10, delay: 1.0 },
       scraping: false,
+      progress: { crawled: 0, success: 0, failed: 0, elapsed: 0, percent: 0 },
+      scrapeResults: [],
+      scrapeResultCols: [],
+      _elapsedTimer: null,
+
+      // 报告
+      showReportDialog: false,
+      reportHtml: '',
+      reportTitle: '',
+      reportLoading: false,
+      reportDownloadUrl: '',
     }
   },
 
@@ -230,6 +323,10 @@ export default {
   async mounted() {
     await this.loadDatasets()
     await this.loadScraperStats()
+  },
+
+  beforeUnmount() {
+    if (this._elapsedTimer) clearInterval(this._elapsedTimer)
   },
 
   methods: {
@@ -286,7 +383,7 @@ export default {
           dataset_id: this.selectedDataset.id,
           format,
         })
-        window.open(`http://localhost:8000${data.download_url}`, '_blank')
+        window.open(data.download_url, '_blank')
         this.$message.success(`导出成功，共 ${data.rows} 条`)
       } catch (err) {
         this.$message.error('导出失败')
@@ -295,16 +392,29 @@ export default {
 
     async generateReport() {
       if (!this.selectedDataset) return
+      this.reportLoading = true
+      this.reportTitle = `${this.selectedDataset.filename} - 分析报告`
+      this.showReportDialog = true
       try {
         const { data } = await axios.post(`${API}/report/generate`, null, {
           params: {
             dataset_id: this.selectedDataset.id,
-            title: `${this.selectedDataset.filename} - 分析报告`,
+            title: this.reportTitle,
           },
         })
-        this.$alert(data.report.slice(0, 500) + '...', '报告预览')
+        this.reportHtml = data.report
+        this.reportDownloadUrl = data.download_url || ''
       } catch (err) {
-        this.$message.error('生成报告失败')
+        this.reportHtml = '<p style="color:red">生成报告失败</p>'
+        this.reportDownloadUrl = ''
+      } finally {
+        this.reportLoading = false
+      }
+    },
+
+    downloadReport() {
+      if (this.reportDownloadUrl) {
+        window.open(this.reportDownloadUrl, '_blank')
       }
     },
 
@@ -320,19 +430,78 @@ export default {
       }
 
       this.scraping = true
+      this.progress = { crawled: 0, success: 0, failed: 0, elapsed: 0, percent: 0 }
+      this.scrapeResults = []
+      this.scrapeResultCols = []
+
+      // 计时器
+      const startTime = Date.now()
+      this._elapsedTimer = setInterval(() => {
+        this.progress.elapsed = Math.floor((Date.now() - startTime) / 1000)
+      }, 1000)
+
       try {
         const { data } = await axios.post(`${API}/scrape/start`, {
           urls,
           max_pages: this.scraperForm.maxPages,
           delay: this.scraperForm.delay,
         })
-        this.$message.success(`爬虫任务已创建: ${data.task_id}`)
-        this.showScraperDialog = false
+
+        const taskId = data.task_id
+
+        // 轮询任务状态
+        let completed = false
+        while (!completed) {
+          await new Promise(r => setTimeout(r, 1000))
+          const statusRes = await axios.get(`${API}/scrape/task/${taskId}`)
+          const task = statusRes.data
+
+          if (task.status === 'completed') {
+            completed = true
+            this.progress.crawled = task.total || 0
+            this.progress.success = task.success || 0
+            this.progress.failed = task.failed || 0
+
+            // 加载结果
+            try {
+              const resRes = await axios.get(`${API}/scrape/results/${taskId}`)
+              const items = resRes.data.results || []
+              this.scrapeResults = items
+              this.scrapeResultCols = items.length > 0
+                ? Object.keys(items[0]).filter(k => k !== 'crawled_at')
+                : []
+            } catch (e) {
+              // 结果可能没有明细
+            }
+
+            this.$message.success(`采集完成，共 ${task.success || 0} 条数据`)
+            this.loadDatasets()
+            this.loadScraperStats()
+          } else if (task.status === 'failed') {
+            completed = true
+            this.$message.error('采集任务失败：' + (task.error || '未知错误'))
+          } else {
+            // 运行中：显示不确定进度
+            if (this.progress.percent < 90) {
+              this.progress.percent += 2
+            }
+          }
+        }
       } catch (err) {
-        this.$message.error('创建任务失败')
+        this.$message.error('采集启动失败: ' + (err.response?.data?.detail || err.message))
       } finally {
+        clearInterval(this._elapsedTimer)
         this.scraping = false
       }
+    },
+
+    closeScraperDialog() {
+      this.showScraperDialog = false
+      this.scrapeResults = []
+      this.scrapeResultCols = []
+      this.progress = { crawled: 0, success: 0, failed: 0, elapsed: 0, percent: 0 }
+      this.loadDatasets()
+      this.loadScraperStats()
     },
 
     handleUploadSuccess(res) {
@@ -342,10 +511,15 @@ export default {
       }
     },
 
+    handleUploadError() {
+      this.$message.error('上传失败，请检查文件格式')
+    },
+
     formatSize(bytes) {
-      if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-      if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB'
-      return bytes + ' B'
+      const n = Number(bytes) || 0
+      if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB'
+      if (n >= 1024) return (n / 1024).toFixed(1) + ' KB'
+      return n + ' B'
     },
   },
 }
@@ -537,5 +711,60 @@ export default {
   padding: 16px 20px;
   display: flex;
   gap: 12px;
+}
+
+.scrape-progress {
+  padding: 8px 0;
+
+  .progress-stats {
+    display: flex;
+    gap: 28px;
+    margin-bottom: 20px;
+
+    .progress-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      span { font-size: 12px; color: #909399; }
+      strong { font-size: 22px; }
+    }
+  }
+
+  .progress-tip {
+    margin-top: 12px;
+    text-align: center;
+    color: #909399;
+    font-size: 13px;
+  }
+}
+
+.report-body {
+  line-height: 1.8;
+  color: #303133;
+
+  :deep(h2) { font-size: 20px; border-bottom: 2px solid #409eff; padding-bottom: 8px; margin: 16px 0 12px; }
+  :deep(h3) { font-size: 17px; color: #409eff; margin: 14px 0 8px; }
+  :deep(h4) { font-size: 14px; color: #606266; margin: 10px 0 6px; }
+  :deep(strong) { color: #303133; }
+  :deep(ul) { padding-left: 20px; margin: 8px 0; }
+  :deep(li) { margin: 4px 0; color: #606266; }
+}
+
+.scrape-results {
+  margin-top: 16px;
+
+  h4 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: #303133;
+  }
+
+  .table-tip {
+    text-align: center;
+    color: #909399;
+    font-size: 12px;
+    margin-top: 8px;
+  }
 }
 </style>

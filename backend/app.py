@@ -31,13 +31,6 @@ def main():
     sys.path.insert(0, backend_dir)
     sys.path.insert(0, spider_dir)
 
-    # 初始化种子数据
-    try:
-        from seed import seed_all
-        seed_all()
-    except Exception:
-        pass
-
     # 延迟打开浏览器
     def open_browser():
         time.sleep(2)
