@@ -259,6 +259,16 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
         success = crawl_result["stats"]["success"]
         failed = crawl_result["stats"]["failed"]
 
+        # 广播进度到 WebSocket 客户端
+        await broadcast_progress({
+            "task_id": task_id,
+            "status": "completed",
+            "total": crawl_result["stats"]["total"],
+            "success": success,
+            "failed": failed,
+            "elapsed": round(elapsed, 1),
+        })
+
         task_data = {
             "task_id": task_id,
             "status": "completed",
@@ -292,6 +302,16 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
 
     except Exception as e:
         logger.error("爬虫任务失败", exc_info=True, extra={"task_id": task_id})
+
+        await broadcast_progress({
+            "task_id": task_id,
+            "status": "failed",
+            "total": len(request.urls),
+            "success": 0,
+            "failed": len(request.urls),
+            "elapsed": 0,
+            "error": str(e),
+        })
 
         task_data = {
             "task_id": task_id,
@@ -575,6 +595,20 @@ async def generate_report(dataset_id: str, title: str = "数据分析报告"):
 # ============================================================
 
 connected_clients: set = set()
+
+
+async def broadcast_progress(data: dict):
+    """向所有连接的 WebSocket 客户端广播进度"""
+    import json
+    stale = set()
+    msg = json.dumps(data, ensure_ascii=False, default=str)
+    for ws in connected_clients:
+        try:
+            await ws.send_text(msg)
+        except Exception:
+            stale.add(ws)
+    connected_clients.difference_update(stale)
+
 
 @app.websocket("/ws/progress")
 async def websocket_endpoint(websocket: WebSocket):
