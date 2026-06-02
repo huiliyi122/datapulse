@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Python 依赖
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    && playwright install chromium --with-deps 2>/dev/null || true
+    && playwright install chromium --with-deps
 
 # 项目文件
 COPY pyproject.toml datapulse.yaml ./
@@ -44,7 +44,7 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 初始化
 RUN mkdir -p /app/uploads /app/output \
-    && python -c "from backend.seed import seed_all; seed_all()" || true
+    && python -c "from backend.seed import seed_all; seed_all()"
 
 EXPOSE 8000
 
