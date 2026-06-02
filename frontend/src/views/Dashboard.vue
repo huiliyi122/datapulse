@@ -18,7 +18,7 @@
     <div class="stats-grid">
       <div class="stat-card" v-for="stat in statistics" :key="stat.label">
         <div class="stat-icon" :style="{ background: stat.color + '18' }">
-          <el-icon :size="24" :color="stat.color">{{ stat.icon }}</el-icon>
+          <el-icon :size="24" :color="stat.color"><component :is="stat.icon" /></el-icon>
         </div>
         <div class="stat-body">
           <span class="stat-value">{{ stat.value }}</span>
@@ -110,7 +110,7 @@
 
 <script>
 import axios from 'axios'
-import { Upload, Check, ArrowDown } from '@element-plus/icons-vue'
+import { Upload, Check, ArrowDown, Folder, Document, Monitor, Coin } from '@element-plus/icons-vue'
 import AnalysisChart from '@/components/AnalysisChart.vue'
 
 const API = '/api'
@@ -123,10 +123,10 @@ export default {
     return {
       Upload, Check, ArrowDown,
       statistics: [
-        { label: 'Datasets', value: 0, icon: 'Folder', color: '#409eff' },
-        { label: 'Total Rows', value: 0, icon: 'Document', color: '#67c23a' },
-        { label: 'Tasks', value: 0, icon: 'Monitor', color: '#e6a23c' },
-        { label: 'Storage', value: '0 MB', icon: 'Coin', color: '#f56c6c' },
+        { label: 'Datasets', value: 0, icon: Folder, color: '#409eff' },
+        { label: 'Total Rows', value: 0, icon: Document, color: '#67c23a' },
+        { label: 'Tasks', value: 0, icon: Monitor, color: '#e6a23c' },
+        { label: 'Storage', value: '0 MB', icon: Coin, color: '#f56c6c' },
       ],
       datasets: [],
       selectedDataset: null,

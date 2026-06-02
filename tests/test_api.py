@@ -17,7 +17,7 @@ class TestHealth:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["version"] == "0.3.3"
+        assert data["version"] == "0.3.4"
 
     def test_healthz(self):
         resp = client.get("/healthz")

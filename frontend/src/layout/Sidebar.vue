@@ -40,6 +40,7 @@ export default {
 
   data() {
     return {
+      username: getUsername(),
       menuItems: [
         { path: '/', icon: '📊', label: 'Dashboard' },
         { path: '/scraper', icon: '🕷️', label: 'Scraper' },
@@ -49,9 +50,9 @@ export default {
     }
   },
 
-  computed: {
-    username() {
-      return getUsername()
+  watch: {
+    '$route'() {
+      this.username = getUsername()
     },
   },
 

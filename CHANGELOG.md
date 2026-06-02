@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.3.4 (2026-06-02)
+
+### Technical Debt
+- slowapi per-route rate limiting (auth 5/min, scrape 10/min, analyze 30/min)
+- Unified config system: api.py + auth.py both use settings module
+- Git history: all commit messages English, Co-Authored-By removed
+- Test coverage: 29 → 49 cases (test_api.py + test_auth.py added)
+
+### Frontend Refactoring
+- vue-router with hash history and auth guards
+- Sidebar navigation (Dashboard / Scraper / AI Extract / Text Analysis)
+- Login & Register pages with token-based auth flow
+- AI Smart Extract page (URL + description → schema + data)
+- Text Analysis page (word frequency / keywords / sentiment + charts)
+- Frontend now covers 100% of backend API endpoints
+- Removed orphaned ScraperConfig.vue and DataDashboard.vue
+
+### WebSocket
+- scraper progress broadcast to all connected clients
+- real-time status updates on task completion/failure
+
+### Infrastructure
+- Version bumped to 0.3.4 across all files
+- INSERT OR REPLACE for duplicate token handling
+- vite proxy: backend → localhost for local dev
+
 ## v0.3.3 (2026-06-02)
 
 ### 致命修复

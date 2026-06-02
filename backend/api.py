@@ -27,7 +27,7 @@ from settings import settings
 app = FastAPI(
     title="DataPulse API",
     description="生产级数据采集与分析平台",
-    version="0.3.3",
+    version="0.3.4",
     debug=settings.debug,
 )
 
@@ -236,22 +236,13 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
         # 构建结果（包含成功和失败）
         results = []
         for r in crawl_result["results"]:
-            if r.status_code == 200 and r.html:
+            if r.status_code != 0 or r.error:
                 results.append({
                     "url": r.url,
                     "status": r.status_code,
-                    "content_length": len(r.html),
+                    "content_length": len(r.html) if r.html else 0,
                     "title": (r.html[:200] if r.html else ""),
-                    "error": "",
-                    "crawled_at": datetime.now().isoformat(),
-                })
-            elif r.error:
-                results.append({
-                    "url": r.url,
-                    "status": r.status_code or 0,
-                    "content_length": 0,
-                    "title": "",
-                    "error": r.error,
+                    "error": r.error or "",
                     "crawled_at": datetime.now().isoformat(),
                 })
 
@@ -508,7 +499,7 @@ async def analyze_data(http_request: Request, request: AnalysisRequest):
         result = {
             "clusters": clusters,
             "columns": cols,
-            "n_clusters": len(set(clusters)),
+            "n_clusters": len({c for c in clusters if c is not None}),
         }
     else:
         raise HTTPException(status_code=400, detail=f"未知分析类型: {request.analysis_type}")
@@ -726,7 +717,7 @@ def _load_dataframe(filepath: str) -> pd.DataFrame:
 @app.get("/healthz")
 async def health_check():
     """健康检查 - 基础存活探针"""
-    return {"status": "ok", "version": "0.3.3", "timestamp": datetime.now().isoformat()}
+    return {"status": "ok", "version": "0.3.4", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/ready")
 async def readiness_check():

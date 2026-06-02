@@ -6,10 +6,10 @@
 
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="handleLogin">
         <el-form-item label="Username" prop="username">
-          <el-input v-model="form.username" placeholder="Enter username" prefix-icon="User" />
+          <el-input v-model="form.username" placeholder="Enter username" :prefix-icon="User" />
         </el-form-item>
         <el-form-item label="Password" prop="password">
-          <el-input v-model="form.password" type="password" placeholder="Enter password" prefix-icon="Lock"
+          <el-input v-model="form.password" type="password" placeholder="Enter password" :prefix-icon="Lock"
             show-password @keyup.enter="handleLogin" />
         </el-form-item>
         <el-button type="primary" :loading="loading" class="login-btn" @click="handleLogin">
@@ -27,6 +27,7 @@
 
 <script>
 import axios from 'axios'
+import { User, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { setAuth } from '@/router'
 
@@ -35,6 +36,7 @@ export default {
 
   data() {
     return {
+      User, Lock,
       loading: false,
       form: { username: '', password: '' },
       rules: {

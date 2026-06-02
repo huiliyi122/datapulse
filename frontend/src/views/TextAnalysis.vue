@@ -42,9 +42,12 @@
       <template v-else-if="result.length">
         <div ref="wordChart" class="chart-box"></div>
         <el-table :data="result.slice(0, 20)" border stripe size="small" max-height="400">
-          <el-table-column prop="word" label="Word" width="160" />
-          <el-table-column prop="count" label="Count" width="100" />
-          <el-table-column prop="weight" label="Weight" min-width="100" />
+          <el-table-column prop="word" label="Term" width="180">
+            <template #default="{ row }">{{ row.word || row.keyword }}</template>
+          </el-table-column>
+          <el-table-column prop="count" label="Count" width="100">
+            <template #default="{ row }">{{ row.count ?? row.weight?.toFixed(4) ?? '-' }}</template>
+          </el-table-column>
         </el-table>
       </template>
 
@@ -75,6 +78,8 @@ export default {
     async runAnalysis() {
       const texts = this.textInput.split('\n').map(s => s.trim()).filter(Boolean)
       if (texts.length === 0) return
+
+      if (this.chart) { this.chart.dispose(); this.chart = null }
 
       this.loading = true
       try {
