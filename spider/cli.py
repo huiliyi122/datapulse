@@ -5,7 +5,6 @@ DataPulse CLI - 命令行工具
 import argparse
 import asyncio
 import json
-import os
 import sys
 
 
@@ -17,18 +16,26 @@ def cmd_crawl(args):
     print(f"   延迟:    {args.delay}s")
     print()
 
-    from spider.engine import SpiderEngine, CrawlRequest
+    from spider.engine import SpiderEngine, RandomDelayMiddleware
     from spider.pipelines import (
-        DataPipelineManager, DataItem,
-        JsonExportPipeline, DedupPipeline,
+        DataPipelineManager, DataItem, JsonExportPipeline, DedupPipeline,
     )
 
     engine = SpiderEngine(concurrent=args.concurrent)
+    engine.add_middleware(RandomDelayMiddleware(min_delay=args.delay, max_delay=args.delay + 1))
     pipeline = DataPipelineManager()
     pipeline.add_pipeline(DedupPipeline())
     pipeline.add_pipeline(JsonExportPipeline(output_dir=args.output))
 
     result = asyncio.run(engine.run(args.urls))
+
+    for i, r in enumerate(result["results"]):
+        item = DataItem(
+            name=f"crawl_{i}",
+            data={"url": r.url, "status": r.status_code, "html": r.html[:500]},
+            source_url=r.url,
+        )
+        pipeline.process(item)
 
     print()
     print("✅ 采集完成!")

@@ -10,7 +10,7 @@ Playwright 浏览器引擎 - 支持 JS 渲染 + 反反爬
 import asyncio
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from .engine import CrawlResult
@@ -275,8 +275,8 @@ class PlaywrightEngine:
     async def crawl_many(self, urls: list[str]) -> list[CrawlResult]:
         """批量爬取"""
         tasks = [self.crawl(u) for u in urls]
-        results = await asyncio.gather(*tasks)
-        return [r for r in results if r is not None]
+        raw = await asyncio.gather(*tasks, return_exceptions=True)
+        return [r for r in raw if not isinstance(r, BaseException) and r is not None]
 
     # -------------------- Stealth 辅助方法 --------------------
 

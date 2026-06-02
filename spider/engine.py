@@ -4,7 +4,6 @@
 """
 import asyncio
 import hashlib
-import json
 import logging
 import random
 import time
@@ -124,6 +123,7 @@ class SpiderEngine:
         self.semaphore = asyncio.Semaphore(concurrent)
         self.middlewares: list[BaseMiddleware] = []
         self.seen_urls: set = set()
+        self._dedup_lock = asyncio.Lock()
         self.results: list[CrawlResult] = []
         self._stats = {
             "total": 0,
@@ -158,13 +158,14 @@ class SpiderEngine:
         normalized = f"{parsed.netloc}{parsed.path}".rstrip("/")
         return hashlib.md5(normalized.encode()).hexdigest()
 
-    def is_duplicate(self, url: str) -> bool:
-        """检查URL是否已爬取"""
+    async def is_duplicate(self, url: str) -> bool:
+        """检查URL是否已爬取（async 锁保护，防止并发竞态）"""
         fp = self._url_fingerprint(url)
-        if fp in self.seen_urls:
-            return True
-        self.seen_urls.add(fp)
-        return False
+        async with self._dedup_lock:
+            if fp in self.seen_urls:
+                return True
+            self.seen_urls.add(fp)
+            return False
 
     @retry(
         stop=stop_after_attempt(3),
@@ -174,55 +175,47 @@ class SpiderEngine:
         ),
     )
     async def fetch(self, request: CrawlRequest) -> CrawlResult:
-        """执行HTTP请求（含自动重试）"""
-        # 执行请求前中间件链
+        """执行HTTP请求（含 @retry 自动重试连接错误和超时）"""
         for middleware in self.middlewares:
             request = await middleware.process_request(request)
 
         start = time.time()
         await self._ensure_session()
-        try:
-            async with self._session.request(
-                method=request.method,
-                url=request.url,
-                headers=request.headers,
-                params=request.params,
-                json=request.data if request.method == "POST" else None,
-                cookies=request.cookies,
-                proxy=request.proxy,
-                ssl=False,
-            ) as resp:
-                elapsed = time.time() - start
-                content_type = resp.headers.get("Content-Type", "")
+        async with self._session.request(
+            method=request.method,
+            url=request.url,
+            headers=request.headers,
+            params=request.params,
+            json=request.data if request.method == "POST" else None,
+            cookies=request.cookies,
+            proxy=request.proxy,
+            ssl=False,
+        ) as resp:
+            elapsed = time.time() - start
+            content_type = resp.headers.get("Content-Type", "")
 
-                if "application/json" in content_type:
+            if "application/json" in content_type:
+                try:
                     data = await resp.json()
-                    result = CrawlResult(
-                        url=request.url,
-                        status_code=resp.status,
-                        json_data=data,
-                        headers=dict(resp.headers),
-                        elapsed=elapsed,
-                    )
-                else:
-                    html = await resp.text(encoding="utf-8", errors="ignore")
-                    result = CrawlResult(
-                        url=request.url,
-                        status_code=resp.status,
-                        html=html,
-                        headers=dict(resp.headers),
-                        elapsed=elapsed,
-                    )
+                except Exception:
+                    data = {}
+                result = CrawlResult(
+                    url=request.url,
+                    status_code=resp.status,
+                    json_data=data,
+                    headers=dict(resp.headers),
+                    elapsed=elapsed,
+                )
+            else:
+                html = await resp.text(encoding="utf-8", errors="ignore")
+                result = CrawlResult(
+                    url=request.url,
+                    status_code=resp.status,
+                    html=html,
+                    headers=dict(resp.headers),
+                    elapsed=elapsed,
+                )
 
-        except aiohttp.ClientError as e:
-            result = CrawlResult(
-                url=request.url,
-                status_code=0,
-                error=str(e),
-                elapsed=time.time() - start,
-            )
-
-        # 执行响应后中间件链
         for middleware in self.middlewares:
             result = await middleware.process_response(result)
 
@@ -230,12 +223,20 @@ class SpiderEngine:
 
     async def crawl(self, request: CrawlRequest) -> Optional[CrawlResult]:
         """爬取单个URL（带并发控制和去重）"""
-        if self.is_duplicate(request.url):
+        if await self.is_duplicate(request.url):
             return None
 
         async with self.semaphore:
             self._stats["total"] += 1
-            result = await self.fetch(request)
+            try:
+                result = await self.fetch(request)
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                result = CrawlResult(
+                    url=request.url,
+                    status_code=0,
+                    error=str(e),
+                )
+                logger.warning("重试耗尽: %s - %s", request.url, str(e))
 
             if result.status_code == 200:
                 self._stats["success"] += 1
@@ -253,8 +254,8 @@ class SpiderEngine:
             self.crawl(CrawlRequest(url=url, **kwargs))
             for url in urls
         ]
-        results = await asyncio.gather(*tasks)
-        return [r for r in results if r is not None]
+        raw = await asyncio.gather(*tasks, return_exceptions=True)
+        return [r for r in raw if not isinstance(r, BaseException) and r is not None]
 
     async def run(self, start_urls: list[str], **kwargs):
         """启动爬虫"""
