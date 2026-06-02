@@ -600,13 +600,18 @@ async def ai_extract(request: AIExtractRequest):
     }
     """
     from urllib.parse import urlparse
+    import ipaddress
     parsed = urlparse(request.url)
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(status_code=400, detail="仅支持 http/https 协议")
-    blocked = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
     host = parsed.hostname or ""
-    if host in blocked or host.startswith(("10.", "192.168.", "172.16.")):
-        raise HTTPException(status_code=400, detail="不支持内网地址访问")
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified:
+            raise HTTPException(status_code=400, detail="不支持内网地址访问")
+    except ValueError:
+        if host in ("localhost",):
+            raise HTTPException(status_code=400, detail="不支持内网地址访问")
 
     try:
         from spider.ai_parser import AIParser

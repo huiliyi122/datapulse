@@ -263,6 +263,7 @@ class SpiderEngine:
         logger.info("启动爬虫，目标: %d 个URL", len(start_urls))
 
         await self.crawl_many(start_urls, **kwargs)
+        await self.close()
 
         elapsed = time.time() - self._stats["start_time"]
         logger.info(

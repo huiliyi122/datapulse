@@ -4,8 +4,10 @@
 支持数据清洗、去重、存储（CSV/JSON/数据库）
 """
 import csv
+import html as _html
 import json
 import os
+import re as _re
 import sqlite3
 from datetime import datetime
 from abc import ABC, abstractmethod
@@ -112,6 +114,8 @@ class FilterPipeline(BasePipeline):
                 return None
             elif op == "contains" and value not in str(actual):
                 return None
+            elif op == "regex" and not _re.search(str(value), str(actual)):
+                return None
 
         return item
 
@@ -165,6 +169,8 @@ class MongoPipeline(BasePipeline):
     """MongoDB存储管道"""
 
     def __init__(self, uri: str, db: str, collection: str):
+        if MongoClient is None:
+            raise ImportError("需要安装 pymongo: pip install pymongo>=4.5")
         self.client = MongoClient(uri)
         self.collection = self.client[db][collection]
 
@@ -306,7 +312,7 @@ class AnalysisExporter:
         for _, row in df.head(100).iterrows():
             html += "<tr>"
             for val in row:
-                html += f"<td>{val}</td>"
+                html += f"<td>{_html.escape(str(val))}</td>"
             html += "</tr>"
 
         html += f"""

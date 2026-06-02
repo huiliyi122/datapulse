@@ -48,7 +48,7 @@ class PaginationDetector:
 
     # Next 链接常见文本
     NEXT_TEXTS = [
-        "next", "下一页", "下页", "»", "›", ">", "→",
+        "next", "下一页", "下页", "→",
         "next page", "Next", "NEXT",
     ]
 
@@ -247,14 +247,18 @@ class PaginationDetector:
 
     def _extract_page_number(self, url: str) -> Optional[int]:
         """从 URL 中提取页码"""
-        # 路径模式: /page/5, /p/3, /page=5
-        path_match = re.search(r"/(?:page|p)/(\d+)/?", url)
-        if path_match:
-            return int(path_match.group(1))
+        # 路径模式: /page/5, /p/3, /page-5, /page=5
+        for pattern in [
+            r"/(?:page|p|pg)/(\d+)/?",
+            r"/(?:page|p|pg)[-=](\d+)",
+        ]:
+            match = re.search(pattern, url)
+            if match:
+                return int(match.group(1))
 
         # 参数模式: ?page=5&size=10
         if "?" in url:
-            query = url.split("?")[1]
+            query = url.split("?")[1].split("#")[0]  # strip fragment
             for param in query.split("&"):
                 if "=" in param:
                     key, val = param.split("=", 1)
