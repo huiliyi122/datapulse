@@ -12,7 +12,6 @@ DataPulse 自定义异常体系
     ├── ConfigError (配置错误)
     └── AuthError (认证错误)
 """
-from typing import Optional
 
 
 class DataPulseError(Exception):
