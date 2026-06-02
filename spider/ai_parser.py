@@ -45,7 +45,7 @@ class AIParser:
         data = parser.extract(html, schema)
     """
 
-    SUPPORTED_PROVIDERS = ["ollama", "openai", "custom"]
+    SUPPORTED_PROVIDERS = ["ollama", "openai", "deepseek", "custom"]
 
     def __init__(
         self,
@@ -61,10 +61,13 @@ class AIParser:
         self.model = model or {
             "ollama": "qwen2.5:7b",
             "openai": "gpt-4o-mini",
+            "deepseek": "deepseek-chat",
             "custom": "default",
         }[provider]
         self.api_key = api_key
-        self.base_url = base_url
+        self.base_url = base_url or {
+            "deepseek": "https://api.deepseek.com/v1",
+        }.get(provider)
 
     # ============================================================
     # 核心方法
@@ -155,7 +158,7 @@ class AIParser:
         """调用 LLM API"""
         if self.provider == "ollama":
             return await self._call_ollama(prompt)
-        elif self.provider in ("openai", "custom"):
+        elif self.provider in ("openai", "deepseek", "custom"):
             return await self._call_openai(prompt)
         raise ValueError(f"未知 provider: {self.provider}")
 

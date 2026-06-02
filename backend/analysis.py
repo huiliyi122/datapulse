@@ -424,7 +424,7 @@ tr:hover td{{background:#f0f7ff}}
 <div class="section"><h2>字段统计详情</h2><table><thead><tr><th>字段名</th><th>类型</th><th>唯一值</th><th>缺失</th><th>统计详情</th></tr></thead><tbody>{field_rows}</tbody></table></div>
 <div class="section"><h2>相关性矩阵</h2>{corr_html if corr_html else '<p style="color:#909399">无足够数值列计算相关性</p>'}</div>
 </div>
-<div class="footer">DataPulse v0.3.4 — Data Collection & Analysis Platform</div>
+<div class="footer">DataPulse v0.3.5 — Data Collection & Analysis Platform</div>
 </body></html>'''
 
     @staticmethod

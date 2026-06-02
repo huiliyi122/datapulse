@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/DataPulse-v0.3.4-blue?style=for-the-badge" alt="DataPulse">
+  <img src="https://img.shields.io/badge/DataPulse-v0.3.5-blue?style=for-the-badge" alt="DataPulse">
 </p>
 
 <p align="center">

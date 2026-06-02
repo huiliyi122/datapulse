@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
-    <SidebarNav v-if="!isGuestRoute" />
-    <div class="main-content" :class="{ 'full-width': isGuestRoute }">
+    <SidebarNav />
+    <div class="main-content">
       <router-view />
     </div>
   </div>
@@ -13,12 +13,6 @@ import SidebarNav from '@/layout/Sidebar.vue'
 export default {
   name: 'App',
   components: { SidebarNav },
-
-  computed: {
-    isGuestRoute() {
-      return this.$route.meta?.guest === true
-    },
-  },
 }
 </script>
 
@@ -35,9 +29,5 @@ body { font-family: -apple-system, 'Microsoft YaHei', sans-serif; background: #f
   margin-left: 220px;
   flex: 1;
   min-width: 0;
-}
-
-.main-content.full-width {
-  margin-left: 0;
 }
 </style>

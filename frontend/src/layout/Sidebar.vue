@@ -14,33 +14,17 @@
     </div>
 
     <div class="sidebar-footer">
-      <template v-if="username">
-        <div class="user-info">
-          <span class="user-avatar">👤</span>
-          <span class="user-name">{{ username }}</span>
-        </div>
-        <div class="user-action" @click="handleLogout">Logout</div>
-      </template>
-      <template v-else>
-        <router-link to="/login" class="menu-item">
-          <span class="menu-icon">🔑</span>
-          <span class="menu-label">Login</span>
-        </router-link>
-      </template>
+      <span class="version">v0.3.5</span>
     </div>
   </div>
 </template>
 
 <script>
-import axios from 'axios'
-import { getUsername, clearAuth } from '@/router'
-
 export default {
   name: 'SidebarNav',
 
   data() {
     return {
-      username: getUsername(),
       menuItems: [
         { path: '/', icon: '📊', label: 'Dashboard' },
         { path: '/scraper', icon: '🕷️', label: 'Scraper' },
@@ -50,25 +34,9 @@ export default {
     }
   },
 
-  watch: {
-    '$route'() {
-      this.username = getUsername()
-    },
-  },
-
   methods: {
     isActive(path) {
       return this.$route.path === path
-    },
-    handleLogout() {
-      const token = localStorage.getItem('datapulse_token')
-      if (token) {
-        axios.post('/api/auth/logout', {}, {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => {})
-      }
-      clearAuth()
-      window.location.href = '/#/login'
     },
   },
 }
@@ -141,29 +109,8 @@ export default {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.user-avatar { font-size: 20px; }
-
-.user-name {
-  font-size: 13px;
-  color: #c0c8e0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-action {
+.version {
   font-size: 12px;
-  color: #f56c6c;
-  cursor: pointer;
-  padding: 4px 0;
+  color: #606a80;
 }
-
-.user-action:hover { color: #ff7875; }
 </style>

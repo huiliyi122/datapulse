@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datapulse"
-version = "0.3.4"
+version = "0.3.5"
 description = "生产级数据采集分析平台 - 双引擎爬虫、AI智能解析、分布式调度、可视化看板"
 readme = "README.md"
 license = {text = "MIT"}

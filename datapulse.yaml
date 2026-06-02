@@ -1,4 +1,4 @@
-# DataPulse Configuration v0.3.4
+# DataPulse Configuration v0.3.5
 # 环境变量优先级高于此文件中的值
 # 使用: datapulse --config custom.yaml
 

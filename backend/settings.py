@@ -1,5 +1,5 @@
 """
-DataPulse v0.3.4 Application Config
+DataPulse v0.3.5 Application Config
 
 优先级: 环境变量 > YAML 配置文件 > 默认值
 """

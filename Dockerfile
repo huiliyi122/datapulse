@@ -17,7 +17,7 @@ FROM python:3.11-slim
 
 LABEL org.opencontainers.image.title="DataPulse"
 LABEL org.opencontainers.image.description="生产级数据采集分析平台"
-LABEL org.opencontainers.image.version="0.3.4"
+LABEL org.opencontainers.image.version="0.3.5"
 
 WORKDIR /app
 

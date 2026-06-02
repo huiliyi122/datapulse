@@ -10,24 +10,22 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import (
-    FastAPI, UploadFile, File, HTTPException, Request, WebSocket, Depends
+    FastAPI, UploadFile, File, HTTPException, Request, WebSocket
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 from analysis import (
     DataAnalyzer, TextAnalyzer,
     ReportGenerator, generate_insights,
 )
-from auth import user_store, create_jwt, verify_jwt, ensure_default_admin
 from settings import settings
 
 app = FastAPI(
     title="DataPulse API",
     description="生产级数据采集与分析平台",
-    version="0.3.4",
+    version="0.3.5",
     debug=settings.debug,
 )
 
@@ -86,77 +84,6 @@ UPLOAD_DIR = settings.upload_dir
 OUTPUT_DIR = settings.output_dir
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# 启动时初始化
-ensure_default_admin()
-
-security = HTTPBearer(auto_error=False)
-
-
-# ============================================================
-# 认证依赖
-# ============================================================
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> dict | None:
-    payload = verify_jwt(credentials.credentials) if credentials else None
-    if payload is None and credentials:
-        raise HTTPException(status_code=401, detail="Token 无效或已过期")
-    if payload and not user_store.verify_token(credentials.credentials):
-        raise HTTPException(status_code=401, detail="Token 已被撤销")
-    return payload
-
-
-async def require_auth(user: dict = Depends(get_current_user)):
-    if user is None:
-        raise HTTPException(status_code=401, detail="请先登录")
-    return user
-
-
-# ============================================================
-# 认证接口
-# ============================================================
-
-class LoginRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6, max_length=128)
-
-class RegisterRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
-    email: str = Field(..., max_length=200)
-    password: str = Field(..., min_length=6, max_length=128)
-
-@app.post("/api/auth/register")
-@_rate_limit("5/minute")
-async def register(request: Request, req: RegisterRequest):
-    user = user_store.create_user(req.username, req.email, req.password)
-    if user is None:
-        raise HTTPException(status_code=400, detail="用户名或邮箱已存在")
-    token = create_jwt(user["id"], user["username"])
-    user_store.save_token(user["id"], token)
-    return {"message": "注册成功", "user": {"id": user["id"], "username": user["username"]}, "access_token": token, "token_type": "bearer"}
-
-@app.post("/api/auth/login")
-@_rate_limit("5/minute")
-async def login(request: Request, req: LoginRequest):
-    user = user_store.verify_user(req.username, req.password)
-    if user is None:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
-    token = create_jwt(user["id"], user["username"])
-    user_store.save_token(user["id"], token)
-    return {"access_token": token, "token_type": "bearer", "user": {"id": user["id"], "username": user["username"], "email": user["email"]}}
-
-@app.get("/api/auth/me")
-async def me(user: dict = Depends(require_auth)):
-    return {"user_id": user["user_id"], "username": user["username"]}
-
-@app.post("/api/auth/logout")
-async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials:
-        user_store.revoke_token(credentials.credentials)
-    return {"message": "已退出登录"}
-
 
 # ============================================================
 # 请求/响应模型
@@ -653,7 +580,12 @@ async def ai_extract(request: AIExtractRequest):
     try:
         from spider.ai_parser import AIParser
 
-        parser = AIParser(provider=request.provider)
+        parser = AIParser(
+            provider=request.provider,
+            model=settings.ai_model,
+            api_key=settings.ai_api_key,
+            base_url=settings.ai_base_url,
+        )
 
         # 先爬取
         html = await parser._fetch_url(request.url)
@@ -717,7 +649,7 @@ def _load_dataframe(filepath: str) -> pd.DataFrame:
 @app.get("/healthz")
 async def health_check():
     """健康检查 - 基础存活探针"""
-    return {"status": "ok", "version": "0.3.4", "timestamp": datetime.now().isoformat()}
+    return {"status": "ok", "version": "0.3.5", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/ready")
 async def readiness_check():
@@ -736,7 +668,6 @@ async def readiness_check():
 
 # 静态文件服务 — 必须在所有路由之后，否则会劫持 API 请求
 from fastapi.staticfiles import StaticFiles  # noqa: E402
-try:
-    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
-except Exception:
-    pass
+_dist = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist")
+if os.path.isdir(_dist):
+    app.mount("/", StaticFiles(directory=_dist, html=True), name="frontend")

@@ -38,7 +38,7 @@ def main():
     threading.Thread(target=open_browser, daemon=True).start()
 
     print("=" * 50)
-    print("  DataPulse v0.3.4 — Data Collection & Analysis Platform")
+    print("  DataPulse v0.3.5 — Data Collection & Analysis Platform")
     print("  浏览器已自动打开，如未打开请访问:")
     print("  http://127.0.0.1:8000")
     print("  按 Ctrl+C 停止服务")
