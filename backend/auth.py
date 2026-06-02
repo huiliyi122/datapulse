@@ -97,7 +97,7 @@ class UserStore:
         expires = (datetime.now() + timedelta(hours=expires_hours)).isoformat()
         with self._get_conn() as conn:
             conn.execute(
-                "INSERT INTO api_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO api_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
                 (user_id, token, expires),
             )
             conn.commit()

@@ -10,7 +10,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import (
-    FastAPI, UploadFile, File, HTTPException, WebSocket, Depends
+    FastAPI, UploadFile, File, HTTPException, Request, WebSocket, Depends
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -129,7 +129,7 @@ class RegisterRequest(BaseModel):
 
 @app.post("/api/auth/register")
 @_rate_limit("5/minute")
-async def register(req: RegisterRequest):
+async def register(request: Request, req: RegisterRequest):
     user = user_store.create_user(req.username, req.email, req.password)
     if user is None:
         raise HTTPException(status_code=400, detail="用户名或邮箱已存在")
@@ -139,7 +139,7 @@ async def register(req: RegisterRequest):
 
 @app.post("/api/auth/login")
 @_rate_limit("5/minute")
-async def login(req: LoginRequest):
+async def login(request: Request, req: LoginRequest):
     user = user_store.verify_user(req.username, req.password)
     if user is None:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
@@ -190,7 +190,7 @@ tasks_db: dict = {}
 
 @app.post("/api/scrape/start")
 @_rate_limit("10/minute")
-async def start_scrape(request: ScrapeRequest):
+async def start_scrape(http_request: Request, request: ScrapeRequest):
     """启动爬虫任务（真实后端任务）"""
     task_id = f"task_{uuid.uuid4().hex[:8]}"
     created_at = datetime.now().isoformat()
@@ -462,7 +462,7 @@ async def list_datasets():
 
 @app.post("/api/analyze")
 @_rate_limit("30/minute")
-async def analyze_data(request: AnalysisRequest):
+async def analyze_data(http_request: Request, request: AnalysisRequest):
     """执行数据分析"""
     filepath = _resolve_dataset(request.dataset_id)
     if not filepath:
