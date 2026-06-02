@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.3.3 (2026-06-02)
+
+### 致命修复
+- 文件下载永远404：相对路径与绝对路径比较修复
+- _sanitize 空字符串 fallback 路径穿越绕过修复
+- JWT 登出后 token 仍有效修复（增加 token 撤销校验）
+- CLI Pipeline 从未被喂数据修复（去重/JSON导出现在生效）
+- AI 智能解析 infer→extract 全链路断裂修复（移除 class 名 hash）
+- Stealth 反反爬 JS 注入竞态修复
+- @retry 装饰器对连接错误不生效修复
+- asyncio.gather 单任务失败取消全批次修复
+- URL 去重竞态条件修复
+- docker-compose 构建失败修复
+
+### 高危修复
+- remove_outliers 零方差列静默丢弃全部数据修复
+- 聚类标签 dropna() 后与原始数据不对齐修复
+- Worker Windows SIGTERM 崩溃修复
+- Worker Ctrl+C 信号处理失效修复
+- Worker engine 未绑定防御修复
+- js_reverse LLM 调用缺少 HTTP 状态码检查修复
+- CsvExportPipeline 不同 key 写坏数据修复
+- render_page/infer_sync 异步上下文崩溃修复
+
+### 改进
+- SSRF 防护：用 ipaddress 模块替代字符串比较，覆盖 IPv6 所有变体
+- FilterPipeline 支持 regex 操作符
+- HTML 报告 XSS 防护（html.escape）
+- MongoPipeline 缺 pymongo 时报清晰的 ImportError
+- 翻页检测移除单字符误匹配，增强 URL 模式匹配
+- 代理池轮询修复跳过首个代理
+- engine.run() 自动关闭 session 防泄漏
+- CLI --delay 参数接入 RandomDelayMiddleware
+- 所有 asyncio.gather 改用 return_exceptions=True
+- celery 导入改为延迟加载
+- pytest-cov 加入 dev 依赖
+- 版本号统一为 0.3.3
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+
 ## v0.3.2 (2026-06-02)
 
 ### 安全修复

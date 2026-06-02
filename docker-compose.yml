@@ -3,7 +3,7 @@ services:
   # ========== FastAPI 后端服务（开发模式） ==========
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: scraper-backend
     restart: always
