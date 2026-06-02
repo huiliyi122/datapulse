@@ -16,8 +16,6 @@ Usage:
 import asyncio
 import json
 import re
-import time
-from typing import Optional
 
 from bs4 import BeautifulSoup
 
@@ -146,7 +144,7 @@ class AIParser:
         return results
 
     def infer_sync(self, html: str, description: str) -> dict:
-        """同步版本（便捷方法）"""
+        """同步版本（仅用于同步上下文，异步中请用 await parser.infer()）"""
         return asyncio.run(self.infer(html, description))
 
     # ============================================================
@@ -271,9 +269,6 @@ HTML 片段:
 
         # 删除注释
         html = re.sub(r"<!--[\s\S]*?-->", "", html)
-
-        # 缩短 class 名
-        html = re.sub(r'class="[^"]*"', lambda m: f'class="c{hash(m.group()) % 1000}"', html)
 
         # 删除多余空白
         html = re.sub(r"\n\s*\n", "\n", html)
