@@ -549,7 +549,8 @@ async def websocket_endpoint(websocket: WebSocket):
 class AIExtractRequest(BaseModel):
     url: str
     description: str
-    provider: str = "ollama"  # ollama / openai
+    provider: str = "ollama"
+    model: str = ""  # override default model from settings
 
 @app.post("/api/ai/extract")
 async def ai_extract(request: AIExtractRequest):
@@ -582,7 +583,7 @@ async def ai_extract(request: AIExtractRequest):
 
         parser = AIParser(
             provider=request.provider,
-            model=settings.ai_model,
+            model=request.model or settings.ai_model,
             api_key=settings.ai_api_key,
             base_url=settings.ai_base_url,
         )
