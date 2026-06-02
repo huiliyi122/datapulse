@@ -146,13 +146,32 @@ def _pbkdf2(password: str, salt: str, iterations: int = 100000) -> str:
 # JWT 生成与验证
 # ============================================================
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "datapulse-secret-change-in-production")
+_SETTINGS = None
 
 
-def create_jwt(user_id: int, username: str, expires_hours: int = 24) -> str:
+def _get_jwt_secret():
+    global _SETTINGS
+    if _SETTINGS is None:
+        from settings import settings as s
+        _SETTINGS = s
+    return _SETTINGS.jwt_secret
+
+
+def _get_jwt_expire():
+    global _SETTINGS
+    if _SETTINGS is None:
+        from settings import settings as s
+        _SETTINGS = s
+    return _SETTINGS.jwt_expire_hours
+
+
+def create_jwt(user_id: int, username: str, expires_hours: int = None) -> str:
     """创建 JWT Token"""
     import base64
     import json
+
+    if expires_hours is None:
+        expires_hours = _get_jwt_expire()
 
     header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()
     payload = base64.urlsafe_b64encode(json.dumps({
@@ -163,7 +182,7 @@ def create_jwt(user_id: int, username: str, expires_hours: int = 24) -> str:
     }).encode()).rstrip(b"=").decode()
     signing_input = f"{header}.{payload}".encode()
     signature = base64.urlsafe_b64encode(
-        hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
+        hmac.new(_get_jwt_secret().encode(), signing_input, hashlib.sha256).digest()
     ).rstrip(b"=").decode()
 
     return f"{header}.{payload}.{signature}"
@@ -184,7 +203,7 @@ def verify_jwt(token: str) -> Optional[dict]:
         # 验证签名 (HMAC-SHA256，常数时间比较)
         signing_input = f"{header}.{payload}".encode()
         expected_sig = base64.urlsafe_b64encode(
-            hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
+            hmac.new(_get_jwt_secret().encode(), signing_input, hashlib.sha256).digest()
         ).rstrip(b"=").decode()
 
         if not hmac.compare_digest(signature, expected_sig):

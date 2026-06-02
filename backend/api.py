@@ -22,12 +22,13 @@ from analysis import (
     ReportGenerator, generate_insights,
 )
 from auth import user_store, create_jwt, verify_jwt, ensure_default_admin
+from settings import settings
 
 app = FastAPI(
     title="DataPulse API",
     description="生产级数据采集与分析平台",
     version="0.3.3",
-    debug=os.environ.get("DATAPULSE_DEBUG", "").lower() in ("true", "1", "yes"),
+    debug=settings.debug,
 )
 
 # CORS（生产环境应限制 origins）
@@ -52,6 +53,13 @@ except ImportError:
     limiter = None
 
 
+def _rate_limit(limit_str: str):
+    """返回限流装饰器，slowapi 未安装时不做限制"""
+    if limiter is not None:
+        return limiter.limit(limit_str)
+    return lambda func: func
+
+
 # 全局异常处理
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
@@ -74,8 +82,8 @@ async def global_exception_handler(request, exc):
     )
 
 
-UPLOAD_DIR = "./uploads"
-OUTPUT_DIR = "./output"
+UPLOAD_DIR = settings.upload_dir
+OUTPUT_DIR = settings.output_dir
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -120,6 +128,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
 
 @app.post("/api/auth/register")
+@_rate_limit("5/minute")
 async def register(req: RegisterRequest):
     user = user_store.create_user(req.username, req.email, req.password)
     if user is None:
@@ -129,6 +138,7 @@ async def register(req: RegisterRequest):
     return {"message": "注册成功", "user": {"id": user["id"], "username": user["username"]}, "access_token": token, "token_type": "bearer"}
 
 @app.post("/api/auth/login")
+@_rate_limit("5/minute")
 async def login(req: LoginRequest):
     user = user_store.verify_user(req.username, req.password)
     if user is None:
@@ -179,6 +189,7 @@ class TextAnalysisRequest(BaseModel):
 tasks_db: dict = {}
 
 @app.post("/api/scrape/start")
+@_rate_limit("10/minute")
 async def start_scrape(request: ScrapeRequest):
     """启动爬虫任务（真实后端任务）"""
     task_id = f"task_{uuid.uuid4().hex[:8]}"
@@ -450,6 +461,7 @@ async def list_datasets():
 # ============================================================
 
 @app.post("/api/analyze")
+@_rate_limit("30/minute")
 async def analyze_data(request: AnalysisRequest):
     """执行数据分析"""
     filepath = _resolve_dataset(request.dataset_id)
