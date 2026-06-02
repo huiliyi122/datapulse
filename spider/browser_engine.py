@@ -199,6 +199,9 @@ class PlaywrightEngine:
 
         page = await self._context.new_page()
 
+        if self.config.stealth:
+            await page.evaluate(STEALTH_JS)
+
         try:
             # 添加额外请求头
             await page.set_extra_http_headers({
@@ -361,7 +364,7 @@ class PlaywrightEngine:
 # 便捷函数
 # ============================================================
 
-def render_page(
+async def render_page(
     url: str,
     wait_selector: str = "",
     timeout: int = 30,
@@ -369,25 +372,33 @@ def render_page(
     proxy: str = None,
 ) -> str:
     """
-    同步便捷方法: 渲染单个 JS 页面返回 HTML
+    异步方法: 渲染单个 JS 页面返回 HTML
     自动应用 stealth 模式
 
     Usage:
-        html = render_page("https://example.com", stealth=True, proxy="http://ip:port")
+        html = await render_page("https://example.com", stealth=True)
     """
-    async def _render():
-        engine = PlaywrightEngine(BrowserConfig(
-            headless=True,
-            timeout=timeout,
-            wait_selector=wait_selector,
-            stealth=stealth,
-            proxy=proxy,
-        ))
-        await engine.start()
-        try:
-            result = await engine.fetch(url)
-            return result.html
-        finally:
-            await engine.stop()
+    engine = PlaywrightEngine(BrowserConfig(
+        headless=True,
+        timeout=timeout,
+        wait_selector=wait_selector,
+        stealth=stealth,
+        proxy=proxy,
+    ))
+    await engine.start()
+    try:
+        result = await engine.fetch(url)
+        return result.html
+    finally:
+        await engine.stop()
 
-    return asyncio.run(_render())
+
+def render_page_sync(
+    url: str,
+    wait_selector: str = "",
+    timeout: int = 30,
+    stealth: bool = True,
+    proxy: str = None,
+) -> str:
+    """同步便捷方法: render_page 的同步包装"""
+    return asyncio.run(render_page(url, wait_selector, timeout, stealth, proxy))
