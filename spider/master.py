@@ -242,7 +242,7 @@ async def distributed_crawl(
 
     # 启动 Worker 协程
     workers = [asyncio.create_task(worker(f"worker-{i}")) for i in range(concurrent)]
-    await asyncio.gather(*workers)
+    await asyncio.gather(*workers, return_exceptions=True)
 
     # 收集结果
     results = await master.collect_results(batch_id=batch_id)

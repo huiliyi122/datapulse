@@ -16,11 +16,10 @@ Usage:
 """
 import asyncio
 import json
-import os
 import random
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -203,7 +202,7 @@ class ProxyPool:
     async def validate_all(self, test_url: str = "http://httpbin.org/ip"):
         """验证所有代理（异步并发）"""
         tasks = [self.validate_proxy(p, test_url) for p in self._proxies]
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     # -------------------- 结果上报 --------------------
 

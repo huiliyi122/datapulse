@@ -1,7 +1,7 @@
 """测试爬虫引擎"""
 import pytest
 
-from spider.engine import SpiderEngine, CrawlRequest, CrawlResult, HtmlParser, RandomDelayMiddleware
+from spider.engine import SpiderEngine, CrawlRequest, HtmlParser, RandomDelayMiddleware
 from spider.exceptions import RequestError, BlockedError
 
 
@@ -36,11 +36,12 @@ class TestHtmlParser:
 
 
 class TestSpiderEngine:
-    def test_url_dedup(self):
+    @pytest.mark.asyncio
+    async def test_url_dedup(self):
         engine = SpiderEngine()
-        assert not engine.is_duplicate("https://example.com")
-        assert engine.is_duplicate("https://example.com")
-        assert not engine.is_duplicate("https://example.com/page2")
+        assert not await engine.is_duplicate("https://example.com")
+        assert await engine.is_duplicate("https://example.com")
+        assert not await engine.is_duplicate("https://example.com/page2")
 
     def test_middleware_registration(self):
         engine = SpiderEngine()
