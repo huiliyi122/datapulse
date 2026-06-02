@@ -61,7 +61,7 @@ class AIParser:
         self.model = model or {
             "ollama": "qwen2.5:7b",
             "openai": "gpt-4o-mini",
-            "deepseek": "deepseek-chat",
+            "deepseek": "deepseek-v4-pro",
             "custom": "default",
         }[provider]
         self.api_key = api_key
