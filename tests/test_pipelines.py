@@ -1,12 +1,11 @@
 # DataPulse Test Suite
 """测试数据处理管道"""
-import pytest
 
 from spider.pipelines import (
     DataItem, DedupPipeline, CleanPipeline,
     FilterPipeline, DataPipelineManager,
 )
-from spider.engine import CrawlResult, HtmlParser
+from spider.engine import HtmlParser
 
 
 class TestDedupPipeline:
@@ -85,8 +84,8 @@ class TestDataPipelineManager:
 class TestHtmlParser:
     def test_extract_links(self, sample_html):
         links = HtmlParser.extract_links(sample_html, "https://test.com")
-        assert any("/page1" in l for l in links)
-        assert any("/page2" in l for l in links)
+        assert any("/page1" in link for link in links)
+        assert any("/page2" in link for link in links)
 
     def test_extract_meta(self, sample_html):
         meta = HtmlParser.extract_meta(sample_html)

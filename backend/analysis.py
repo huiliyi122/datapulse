@@ -5,7 +5,7 @@
 import math
 import re
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Optional
 
 import jieba
@@ -13,7 +13,6 @@ import jieba.analyse
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 
 
@@ -418,7 +417,7 @@ tr:hover td{{background:#f0f7ff}}
 <div class="section"><h2>字段统计详情</h2><table><thead><tr><th>字段名</th><th>类型</th><th>唯一值</th><th>缺失</th><th>统计详情</th></tr></thead><tbody>{field_rows}</tbody></table></div>
 <div class="section"><h2>相关性矩阵</h2>{corr_html if corr_html else '<p style="color:#909399">无足够数值列计算相关性</p>'}</div>
 </div>
-<div class="footer">DataPulse v0.3.1 — 数据采集分析平台</div>
+<div class="footer">DataPulse v0.3.3 — 数据采集分析平台</div>
 </body></html>'''
 
     @staticmethod

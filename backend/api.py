@@ -10,7 +10,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import (
-    FastAPI, UploadFile, File, HTTPException, Query, WebSocket, Depends, Header
+    FastAPI, UploadFile, File, HTTPException, WebSocket, Depends
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -18,7 +18,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 from analysis import (
-    DataCleaner, DataAnalyzer, TextAnalyzer,
+    DataAnalyzer, TextAnalyzer,
     ReportGenerator, generate_insights,
 )
 from auth import user_store, create_jwt, verify_jwt, ensure_default_admin
@@ -26,7 +26,7 @@ from auth import user_store, create_jwt, verify_jwt, ensure_default_admin
 app = FastAPI(
     title="DataPulse API",
     description="生产级数据采集与分析平台",
-    version="0.3.2",
+    version="0.3.3",
     debug=os.environ.get("DATAPULSE_DEBUG", "").lower() in ("true", "1", "yes"),
 )
 
@@ -56,7 +56,6 @@ except ImportError:
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """统一错误响应格式"""
-    import traceback
     from logging_config import get_logger
 
     logger = get_logger("datapulse.api")
@@ -96,6 +95,8 @@ async def get_current_user(
     payload = verify_jwt(credentials.credentials) if credentials else None
     if payload is None and credentials:
         raise HTTPException(status_code=401, detail="Token 无效或已过期")
+    if payload and not user_store.verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Token 已被撤销")
     return payload
 
 
@@ -208,8 +209,7 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
 
     try:
         # 导入爬虫引擎
-        from spider.engine import SpiderEngine, CrawlRequest, RandomDelayMiddleware
-        from spider.pipelines import DataPipelineManager, JsonExportPipeline, DedupPipeline, DataItem
+        from spider.engine import SpiderEngine, RandomDelayMiddleware
 
         engine = SpiderEngine(concurrent=min(request.max_pages, 10))
         engine.add_middleware(RandomDelayMiddleware(min_delay=max(0.5, request.delay), max_delay=request.delay + 1))
@@ -297,7 +297,9 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
         }
 
     # 持久化（task_id 由 uuid 生成，安全）
-    fname = _sanitize(task_id) or task_id
+    fname = _sanitize(task_id)
+    if not fname:
+        raise HTTPException(status_code=400, detail="非法的任务ID")
     with open(os.path.join(OUTPUT_DIR, f"{fname}.json"), "w", encoding="utf-8") as f:
         json.dump(task_data, f, ensure_ascii=False, indent=2)
 
@@ -307,7 +309,9 @@ async def _run_scrape_task(task_id: str, request: ScrapeRequest):
 @app.get("/api/scrape/task/{task_id}")
 async def get_task_status(task_id: str):
     """查询爬虫任务状态"""
-    safe_id = _sanitize(task_id) or task_id
+    safe_id = _sanitize(task_id)
+    if not safe_id:
+        raise HTTPException(status_code=400, detail="非法的任务ID")
     task = tasks_db.get(task_id)
     if not task:
         task_file = os.path.join(OUTPUT_DIR, f"{safe_id}.json")
@@ -368,7 +372,9 @@ async def list_scrape_tasks():
 @app.get("/api/scrape/results/{task_id:path}")
 async def get_scrape_results(task_id: str):
     """获取爬取结果数据"""
-    safe_id = _sanitize(task_id) or task_id
+    safe_id = _sanitize(task_id)
+    if not safe_id:
+        raise HTTPException(status_code=400, detail="非法的任务ID")
     task_file = os.path.join(OUTPUT_DIR, f"{safe_id}.json")
     if not os.path.exists(task_file):
         raise HTTPException(status_code=404, detail="结果文件不存在")
@@ -532,7 +538,7 @@ async def download_file(filename: str):
     if ".." in safe or os.path.isabs(safe):
         raise HTTPException(status_code=400, detail="非法文件名")
     filepath = os.path.join(OUTPUT_DIR, safe)
-    if not os.path.exists(filepath) or not filepath.startswith(os.path.abspath(OUTPUT_DIR)):
+    if not os.path.exists(filepath) or not os.path.abspath(filepath).startswith(os.path.abspath(OUTPUT_DIR)):
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(filepath, filename=os.path.basename(safe))
 
@@ -669,7 +675,7 @@ def _load_dataframe(filepath: str) -> pd.DataFrame:
 @app.get("/healthz")
 async def health_check():
     """健康检查 - 基础存活探针"""
-    return {"status": "ok", "version": "0.3.1", "timestamp": datetime.now().isoformat()}
+    return {"status": "ok", "version": "0.3.3", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/ready")
 async def readiness_check():
