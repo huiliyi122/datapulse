@@ -3,7 +3,6 @@
 内置解析器插件
 """
 import json
-import re
 
 from bs4 import BeautifulSoup
 
