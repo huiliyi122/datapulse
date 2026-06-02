@@ -120,6 +120,8 @@ class DataCleaner:
         df: pd.DataFrame, column: str, threshold: float = 3.0
     ) -> pd.DataFrame:
         """基于Z-Score去除异常值"""
+        if df[column].std() == 0:
+            return df  # 常量列，无异常值
         z_scores = np.abs(
             (df[column] - df[column].mean()) / df[column].std()
         )
@@ -269,8 +271,10 @@ class DataAnalyzer:
     def clustering(
         self, columns: list[str], n_clusters: int = 3
     ) -> list[int]:
-        """KMeans聚类分析"""
+        """KMeans聚类分析（NaN 行保留为 None）"""
         data = self.df[columns].dropna()
+        if len(data) == 0:
+            return [None] * len(self.df)
         scaler = StandardScaler()
         scaled = scaler.fit_transform(data)
 
@@ -279,7 +283,10 @@ class DataAnalyzer:
             random_state=42,
             n_init=10,
         )
-        return kmeans.fit_predict(scaled).tolist()
+        labels = [None] * len(self.df)
+        for i, idx in enumerate(data.index):
+            labels[idx] = int(kmeans.fit_predict(scaled)[i])
+        return labels
 
 
 def generate_insights(analyzer: DataAnalyzer) -> list[str]:

@@ -57,13 +57,14 @@ class SpiderWorker:
         logger.info("Worker启动", extra={"worker_id": self.worker_id, "engine": self.engine_type})
 
         # 初始化引擎
-        if self.engine_type == "playwright":
-            engine = PlaywrightEngine(BrowserConfig(stealth=True, headless=True))
-            await engine.start()
-        else:
-            engine = SpiderEngine(concurrent=3)
-
+        engine = None
         try:
+            if self.engine_type == "playwright":
+                engine = PlaywrightEngine(BrowserConfig(stealth=True, headless=True))
+                await engine.start()
+            else:
+                engine = SpiderEngine(concurrent=3)
+
             while self._running:
                 task = await master.get_task(self.worker_id, block=3)
                 if task is None:
@@ -75,27 +76,25 @@ class SpiderWorker:
                 try:
                     if self.engine_type == "playwright":
                         result = await engine.fetch(url)
-                        data = {
-                            "batch_id": task.get("batch_id"),
-                            "url": url,
-                            "status": result.status_code,
-                            "html": result.html[:5000],
-                            "error": result.error,
-                            "elapsed": result.elapsed,
-                        }
+                        status = result.status_code
                     else:
-                        result = (await engine.crawl(CrawlRequest(url=url)))
-                        data = {
-                            "batch_id": task.get("batch_id"),
-                            "url": url,
-                            "status": result.status_code,
-                            "html": result.html[:5000] if result.html else "",
-                            "error": result.error,
-                            "elapsed": result.elapsed,
-                        }
+                        result = await engine.crawl(CrawlRequest(url=url))
+                        status = result.status_code if result else 0
 
-                    self._stats["success"] += 1
-                    logger.info("爬取成功", extra={"worker_id": self.worker_id, "url": url, "status": result.status_code})
+                    if status == 200:
+                        self._stats["success"] += 1
+                    else:
+                        self._stats["failed"] += 1
+
+                    data = {
+                        "batch_id": task.get("batch_id"),
+                        "url": url,
+                        "status": status,
+                        "html": result.html[:5000] if result and result.html else "",
+                        "error": result.error if result else "URL已重复",
+                        "elapsed": result.elapsed if result else 0,
+                    }
+                    logger.info("爬取完成", extra={"worker_id": self.worker_id, "url": url, "status": status})
 
                 except Exception as e:
                     data = {
@@ -110,8 +109,11 @@ class SpiderWorker:
                 await master.submit_result(data)
 
         finally:
-            if self.engine_type == "playwright":
-                await engine.stop()
+            if engine is not None:
+                if self.engine_type == "playwright":
+                    await engine.stop()
+                else:
+                    await engine.close()
             self._running = False
 
     def stop(self):
@@ -147,14 +149,9 @@ def main():
             )
             workers.append(asyncio.create_task(w.start()))
 
-        # 优雅退出
-        def handle_signal(sig, frame):
-            logger.info("正在停止所有Worker")
-            for w in workers:
-                w.cancel()
-
-        signal.signal(signal.SIGINT, handle_signal)
-        signal.signal(signal.SIGTERM, handle_signal)
+        signal.signal(signal.SIGINT, lambda sig, frame: None)
+        if sys.platform != "win32":
+            signal.signal(signal.SIGTERM, lambda sig, frame: None)
 
         await asyncio.gather(*workers)
 
