@@ -17,7 +17,7 @@ Usage:
 import asyncio
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -319,6 +319,8 @@ JS 代码:
                       "options": {"temperature": 0.1, "num_predict": 2048}},
                 timeout=aiohttp.ClientTimeout(total=60),
             ) as resp:
+                if resp.status != 200:
+                    raise Exception(f"Ollama 调用失败: {resp.status}")
                 data = await resp.json()
                 return data.get("response", "")
 
@@ -332,6 +334,8 @@ JS 代码:
                       "temperature": 0.1, "max_tokens": 2048},
                 headers=headers, timeout=30,
             ) as resp:
+                if resp.status != 200:
+                    raise Exception(f"OpenAI 调用失败: {resp.status}")
                 data = await resp.json()
                 return data["choices"][0]["message"]["content"]
 

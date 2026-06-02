@@ -147,9 +147,9 @@ class ProxyPool:
             return random.choice(alive)
         else:  # round_robin
             with self._lock:
-                self._index = (self._index + 1) % len(alive)
                 p = alive[self._index]
                 p.last_used = time.time()
+                self._index = (self._index + 1) % len(alive)
                 return p
 
     def _weighted_choice(self, proxies: list[Proxy]) -> Proxy:
